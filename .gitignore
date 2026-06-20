@@ -6,3 +6,5 @@ examples/*.gcode
 *.tmp
 __pycache__/
 *.pyc
+
+examples/*.png

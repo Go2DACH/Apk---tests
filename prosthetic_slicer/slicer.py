@@ -136,6 +136,7 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
                 surface_grid=2.0, smooth=2, top_layers=3, bottom_layers=3,
                 conformity=1.0, max_angle=60.0, infill_pattern='lines',
                 drain_holes=0, drain_diameter=5.0, drain_full_channel=False,
+                vent_holes=0, vent_diameter=4.0,
                 base_override=None, progress=None):
     plan = make_plan(field, tris, surface_grid, amp, wavelength,
                      reference_stl, smooth, conformity, max_angle,
@@ -144,6 +145,10 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
     _, _, wzmin, _, _, wzmax = bounds(work)
     bx0, by0, _, bx1, by1, _ = bounds(tris)
     bbox = (bx0, by0, bx1, by1)
+
+    # seitliche Entlueftungsschlitze (vertikal): Scheiben am Rand subtrahieren
+    vent_disks = _drain_disks(bbox, vent_holes, vent_diameter,
+                              on_rim=True) if vent_holes else []
 
     # --- Pass A: Geometrie je Schicht sammeln (Waende + Innenregion) ---
     raw = []
@@ -155,8 +160,11 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
         if segs:
             loops = stitch(segs)
             if loops:
-                walls, infill_polys = offset_mod.walls_and_infill(
-                    loops, line_width, perimeters)
+                region = offset_mod.normalize_loops(loops)
+                if vent_disks:
+                    region = offset_mod.difference(region, vent_disks)
+                walls, infill_polys = offset_mod.walls_and_infill_from_polys(
+                    region, line_width, perimeters)
                 raw.append({'w': z, 'walls': walls, 'region': infill_polys})
         if progress and li % 10 == 0:
             progress(li, total)
@@ -208,19 +216,24 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
                        thickness_scale=plan.thickness_scale)
 
 
-def _drain_disks(bbox, count, diameter, seg=24):
-    """Kreisscheiben (Polygone) fuer die Ablaufloecher. 1 Loch = Mitte,
-    mehrere = Ring um die Mitte."""
+def _drain_disks(bbox, count, diameter, seg=24, on_rim=False):
+    """Kreisscheiben (Polygone). on_rim=False: Ablaufloecher (Mitte/Ring um die
+    Mitte). on_rim=True: seitliche Entluefter auf dem Rand verteilt."""
     import math
     x0, y0, x1, y1 = bbox
     cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     r = max(0.5, diameter / 2.0)
     span = min(x1 - x0, y1 - y0)
-    ring = span * 0.28 if count > 1 else 0.0
     centers = []
-    if count <= 1:
+    if on_rim:
+        ring = span * 0.5                      # auf dem Bauteilrand
+        for k in range(max(1, count)):
+            a = 2 * math.pi * k / max(1, count)
+            centers.append((cx + ring * math.cos(a), cy + ring * math.sin(a)))
+    elif count <= 1:
         centers = [(cx, cy)]
     else:
+        ring = span * 0.28
         for k in range(count):
             a = 2 * math.pi * k / count
             centers.append((cx + ring * math.cos(a), cy + ring * math.sin(a)))

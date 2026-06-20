@@ -28,6 +28,8 @@ def build_config(args):
     if args.drain is not None:        cfg.process.drain_holes = args.drain
     if args.drain_d is not None:      cfg.process.drain_diameter = args.drain_d
     if args.drain_channel:            cfg.process.drain_full_channel = True
+    if args.vents is not None:        cfg.process.vent_holes = args.vents
+    if args.vent_d is not None:       cfg.process.vent_diameter = args.vent_d
     return cfg
 
 
@@ -59,6 +61,9 @@ def main(argv=None):
                     help='Durchmesser der Ablaufloecher in mm')
     ap.add_argument('--drain-channel', action='store_true', dest='drain_channel',
                     help='durchgehender Ablaufkanal (oben+unten) statt nur oben')
+    ap.add_argument('--vents', type=int, help='seitliche Entlueftungsloecher')
+    ap.add_argument('--vent-d', type=float, dest='vent_d',
+                    help='Durchmesser der Entluefter in mm')
     ap.add_argument('--report', action='store_true')
     args = ap.parse_args(argv)
 

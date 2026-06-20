@@ -47,9 +47,12 @@ class ProcessProfile:
     z_lift: float = 0.0
     infill_pattern: str = "lines"        # lines | gyroid (3D, durchlaessig)
     # Ablauf des Bad-Gels: Loecher durch die Solid-Schale + poroeses Inneres
-    drain_holes: int = 1                 # Anzahl Ablaufloecher (0 = aus)
+    drain_holes: int = 1                 # Anzahl Ablaufloecher oben (0 = aus)
     drain_diameter: float = 5.0          # Durchmesser je Loch (mm)
     drain_full_channel: bool = False     # True: durchgehender Kanal (oben+unten)
+    vent_holes: int = 0                  # seitliche Entluefter (vertikale Schlitze)
+    vent_diameter: float = 4.0           # Durchmesser je Entluefter (mm)
+    min_pore_mm: float = 1.0             # Warnschwelle Porengroesse (Durchlaessigkeit)
     # Non-planar
     field: str = "bottom"                # planar|bottom|morph|top|reference|wave|dome
     amp: float = 0.0                     # nur analytisch

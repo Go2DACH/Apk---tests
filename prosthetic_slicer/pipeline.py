@@ -34,7 +34,28 @@ def slice_mesh(tris, cfg, progress=None):
         conformity=p.conformity, max_angle=p.max_surface_angle,
         infill_pattern=p.infill_pattern, drain_holes=p.drain_holes,
         drain_diameter=p.drain_diameter, drain_full_channel=p.drain_full_channel,
+        vent_holes=p.vent_holes, vent_diameter=p.vent_diameter,
         progress=progress)
+
+
+def permeability_check(cfg):
+    """Warnt, wenn das Gel nicht ablaufen kann (zu enges Infill / kein Loch)."""
+    p = cfg.process
+    warns = []
+    if p.infill_pattern == 'gyroid':
+        pore = p.infill_spacing - p.line_width        # ~ Kanalweite
+    else:
+        pore = p.infill_spacing - p.line_width        # Spalt zwischen Linien
+    if p.infill_spacing <= 0:
+        warns.append('Infill-Abstand 0 -> dichtes Inneres, Gel kann nicht ablaufen.')
+    elif pore < p.min_pore_mm:
+        warns.append('Porengroesse ~%.1f mm < %.1f mm – Infill zu eng, Gel laeuft '
+                     'schlecht ab (Infill-Abstand erhoehen).' % (pore, p.min_pore_mm))
+    if p.drain_holes <= 0 and p.vent_holes <= 0 and \
+            (p.top_layers > 0 or p.bottom_layers > 0):
+        warns.append('Keine Ablauf-/Entlueftungsloecher – Solid-Schalen '
+                     'versiegeln das poroese Innere, Gel bleibt eingeschlossen.')
+    return warns
 
 
 def run(stl_path, cfg, progress=None):
@@ -47,6 +68,7 @@ def run(stl_path, cfg, progress=None):
     text = gcode.write_gcode(result, rt)
     ang = analysis.result_max_slope_deg(result)
     tune['max_surface_angle_deg'] = round(ang, 1)
+    tune['warnings'].extend(permeability_check(cfg))
     if ang > cfg.process.max_surface_angle + 5:
         tune['warnings'].append(
             'Bahnneigung %.0f° ueber Ziel %.0f° – Oberflaechen-Raster/Glaettung '

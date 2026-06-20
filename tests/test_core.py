@@ -407,6 +407,51 @@ def test_drain_hole_in_top_shell():
     assert bottom_solid_in_hole > 0, "Boden sollte geschlossen bleiben"
 
 
+def test_vent_holes_notch_side_wall():
+    """Seitliche Entluefter: kerben die Aussenwand ein (Wandpunkte entfernt)."""
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    cfg.process.perimeters = 2
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'cube.stl')
+        _write_stl(p, cube(size=40.0))
+        cfg.process.vent_holes = 0
+        _, r0, _ = pipeline.run(p, cfg)
+        cfg.process.vent_holes = 4
+        cfg.process.vent_diameter = 5.0
+        _, r1, _ = pipeline.run(p, cfg)
+    from prosthetic_slicer.infill3d import _point_in_polys
+
+    def outer_loop(layer):
+        return max(layer.perimeters, key=lambda p: _bbox_area(p))
+
+    def covered(layer, pt):
+        return _point_in_polys(pt[0], pt[1], [outer_loop(layer)])
+
+    mid = len(r0.layers) // 2
+    probe = (168.0, 150.0)   # in der Kerbzone am rechten Rand (Radius 18)
+    assert covered(r0.layers[mid], probe), "ohne Vent sollte der Punkt drin sein"
+    assert not covered(r1.layers[mid], probe), "Entluefter kerbt die Wand nicht ein"
+
+
+def _bbox_area(poly):
+    xs = [p[0] for p in poly]; ys = [p[1] for p in poly]
+    return (max(xs) - min(xs)) * (max(ys) - min(ys))
+
+
+def test_permeability_warning():
+    cfg = AppConfig()
+    cfg.process.infill_spacing = 1.2     # Pore ~0.2 mm < 1.0
+    cfg.process.line_width = 1.0
+    warns = pipeline.permeability_check(cfg)
+    assert any('Porengroesse' in w for w in warns)
+    cfg2 = AppConfig()
+    cfg2.process.drain_holes = 0
+    cfg2.process.vent_holes = 0
+    warns2 = pipeline.permeability_check(cfg2)
+    assert any('versiegeln' in w for w in warns2)
+
+
 def test_gyroid_is_permeable():
     """Gyroid-Infill ist offen (kein geschlossener Rand-zu-Rand-Block)."""
     from prosthetic_slicer import infill3d

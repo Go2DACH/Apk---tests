@@ -158,7 +158,13 @@ def walls_and_infill(loops, line_width, perimeters):
 
     wall_polylines: geschlossene Perimeter-Polylinien (erster Punkt am Ende
     wiederholt). infill_polys: Polygone, in denen Infill liegen darf."""
-    polys = normalize_loops(loops)
+    return walls_and_infill_from_polys(normalize_loops(loops),
+                                       line_width, perimeters)
+
+
+def walls_and_infill_from_polys(polys, line_width, perimeters):
+    """Wie walls_and_infill, aber mit bereits orientierten Polygonen (z. B.
+    nachdem Entlueftungsloecher subtrahiert wurden)."""
     walls = []
     for i in range(perimeters):
         ring = inset(polys, line_width * (0.5 + i))
