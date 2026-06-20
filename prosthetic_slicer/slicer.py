@@ -11,20 +11,28 @@ from . import offset as offset_mod
 
 
 class Layer:
-    __slots__ = ('index', 'w', 'perimeters', 'infill')
+    __slots__ = ('index', 'w', 'perimeters', 'solid_infill', 'sparse_infill')
 
     def __init__(self, index, w):
         self.index = index
-        self.w = w               # nominale (gerade gezogene) Schichthoehe
-        self.perimeters = []     # Liste von Polylinien [(x,y), ...] (geschlossen)
-        self.infill = []         # Liste von Segmenten ((x,y),(x,y))
+        self.w = w                 # nominale (gerade gezogene) Schichthoehe
+        self.perimeters = []       # Liste von Polylinien [(x,y), ...] (geschlossen)
+        self.solid_infill = []     # Top/Bottom-Solid-Segmente ((x,y),(x,y))
+        self.sparse_infill = []    # Sparse-Infill-Segmente
+
+    @property
+    def infill(self):
+        """Kombinierte Infill-Segmente (solid + sparse)."""
+        return self.solid_infill + self.sparse_infill
 
 
 class SliceResult:
-    def __init__(self, layers, post_point, meta):
+    def __init__(self, layers, post_point, meta, thickness_scale=None):
         self.layers = layers
         self.post_point = post_point
         self.meta = meta
+        # thickness_scale(x,y) -> lokale Schichtdicke relativ zur Nennhoehe.
+        self.thickness_scale = thickness_scale or (lambda x, y: 1.0)
 
 
 # --------------------------------------------------------------------------- #
@@ -85,13 +93,15 @@ def stitch(segs):
 #  Infill (Scanlinien, even-odd)
 # --------------------------------------------------------------------------- #
 
-def infill(loops, spacing, axis, bbox):
+def infill(loops, spacing, axis, bbox, phase=0.0):
+    """Scanlinien-Infill (even-odd). phase verschiebt die Linien pro Schicht,
+    sodass sparse Infill ueber die (gekruemmten) Schichten ein 3D-Gitter bildet."""
     if spacing <= 0 or not loops:
         return []
     xmin, ymin, xmax, ymax = bbox
     lines = []
     lo, hi = (ymin, ymax) if axis == 'x' else (xmin, xmax)
-    c = lo + spacing * 0.5
+    c = lo + spacing * 0.5 + (phase % spacing)
     while c < hi:
         xs = []
         for loop in loops:
@@ -159,14 +169,12 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
         layer = Layer(i, raw[i]['w'])
         layer.perimeters = raw[i]['walls']
         axis = 'x' if (i % 2 == 0) else 'y'
-        solid_axis = 'x' if (i % 2 == 0) else 'y'
-        lines = []
         if solid:
-            lines += infill(solid, line_width, solid_axis, bbox)   # 100% solid
+            layer.solid_infill = infill(solid, line_width, axis, bbox)  # 100%
         if sparse and infill_spacing > 0:
-            lines += infill(sparse, infill_spacing, axis, bbox)
-        layer.infill = lines
-        if layer.perimeters or layer.infill:
+            layer.sparse_infill = infill(sparse, infill_spacing, axis, bbox,
+                                         phase=(i % 2) * (infill_spacing / 2.0))
+        if layer.perimeters or layer.solid_infill or layer.sparse_infill:
             layers.append(layer)
         if progress and i % 10 == 0:
             progress(i, n)
@@ -174,7 +182,8 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
     meta = {'field': field, 'layers': len(layers),
             'z_range': (wzmin, wzmax), 'bbox': bbox,
             'top_layers': top_layers, 'bottom_layers': bottom_layers}
-    return SliceResult(layers, plan.post_point, meta)
+    return SliceResult(layers, plan.post_point, meta,
+                       thickness_scale=plan.thickness_scale)
 
 
 def _solid_region(raw, i, n, top_layers, bottom_layers):

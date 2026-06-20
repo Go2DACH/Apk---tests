@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
     QDoubleSpinBox, QSpinBox, QComboBox, QLineEdit, QPlainTextEdit, QPushButton,
     QLabel, QFileDialog, QMessageBox, QCheckBox, QScrollArea, QTabWidget,
-    QInputDialog)
+    QInputDialog, QSlider)
 
 from .. import APP_NAME, __version__, pipeline
 from ..config import (AppConfig, list_profiles, profile_path)
@@ -105,6 +105,17 @@ class MainWindow(QMainWindow):
         actions.addStretch(1)
         right.addLayout(actions)
 
+        # Schicht-Slider (zeigt nur bis Schicht X)
+        slrow = QHBoxLayout()
+        slrow.addWidget(QLabel('Schichten bis:'))
+        self.sld_layer = QSlider(QtCore.Qt.Horizontal)
+        self.sld_layer.setMinimum(0); self.sld_layer.setMaximum(0)
+        self.sld_layer.valueChanged.connect(self._on_layer_slider)
+        self.lbl_layer = QLabel('—')
+        slrow.addWidget(self.sld_layer, 1)
+        slrow.addWidget(self.lbl_layer)
+        right.addLayout(slrow)
+
         self.lbl_status = QLabel('Bereit.')
         self.lbl_status.setWordWrap(True)
         self.lbl_status.setStyleSheet('color:#ccc; padding:4px;')
@@ -190,7 +201,8 @@ class MainWindow(QMainWindow):
         self.in_bottom = QSpinBox(); self.in_bottom.setRange(0, 50); self.in_bottom.setValue(3)
         self.in_maxseg = _dspin(0.2, 10, 1.0, 0.1, 2, 'mm')
         self.in_field = QComboBox()
-        self.in_field.addItems(['bottom', 'top', 'reference', 'planar', 'wave', 'dome'])
+        self.in_field.addItems(['bottom', 'morph', 'top', 'reference',
+                                'planar', 'wave', 'dome'])
         self.in_amp = _dspin(0, 100, 0, 0.5, 2, 'mm')
         self.in_wl = _dspin(1, 500, 30, 1, 1, 'mm')
         self.in_grid = _dspin(0.5, 20, 2.0, 0.5, 1, 'mm')
@@ -327,6 +339,13 @@ class MainWindow(QMainWindow):
         self.gcode_text = text
         self._last_result = result
         self.btn_slice.setEnabled(True)
+        from .. import preview_data
+        nmax = preview_data.layer_count(result)
+        self.sld_layer.blockSignals(True)
+        self.sld_layer.setMaximum(nmax)
+        self.sld_layer.setValue(nmax)
+        self.sld_layer.blockSignals(False)
+        self.lbl_layer.setText('%d / %d' % (nmax, nmax))
         self._refresh_preview()
         self.lbl_status.setText(
             'Fertig: %d Schichten · Druck %.1f mm/s · Reise %.1f mm/s · %s\n%s'
@@ -338,12 +357,19 @@ class MainWindow(QMainWindow):
         self.btn_slice.setEnabled(True)
         QMessageBox.critical(self, APP_NAME, 'Slicing-Fehler:\n' + tb)
 
+    def _on_layer_slider(self, val):
+        if self._last_result:
+            self.lbl_layer.setText('%d / %d' % (val, self.sld_layer.maximum()))
+            self._refresh_preview()
+
     def _refresh_preview(self):
         if not self._last_result or not hasattr(self.preview, 'show_paths'):
             return
-        peri, infill = preview_data.toolpath_polylines(
-            self._last_result, max_seg=self.cfg.process.max_seg)
-        self.preview.show_paths(peri, infill, show_infill=self.chk_infill.isChecked())
+        peri, solid, sparse = preview_data.toolpath_polylines(
+            self._last_result, max_seg=self.cfg.process.max_seg,
+            max_layer=self.sld_layer.value())
+        self.preview.show_paths(peri, solid, sparse,
+                                show_infill=self.chk_infill.isChecked())
 
     def on_export(self):
         if not self.gcode_text:

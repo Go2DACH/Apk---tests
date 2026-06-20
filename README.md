@@ -27,7 +27,11 @@ Voron-Umbau (300×300×300 mm, 1,0 mm Nadel, 15 mm³/s, Nadel biegt > 50 mm/s).
 - **Drei Dosier-Modi:** `volumetric` (mm³, Spritzenpumpe), `filament` (mm),
   `pressure` (Druck/Zeit über konfigurierbare AN/AUS-Befehle).
 - **Konforme & analytische Felder:** `bottom`/`top`/`reference` (formerhaltend),
-  `wave`/`dome` (analytisch, zum Testen), `planar`.
+  `morph` (Schichten morphen von Boden- zu Deckform → multidirektionale Krümmung
+  + variable Schichtdicke mit Flusskorrektur), `wave`/`dome`, `planar`.
+  Mathematik/Fahrplan: siehe [docs/DESIGN_nonplanar.md](docs/DESIGN_nonplanar.md).
+- **3D-Vorschau:** Schicht-Slider (nur bis Schicht X) und Farbtrennung
+  Perimeter / Solid (orange) / Sparse (cyan).
 - **Top/Bottom-Solid-Layer:** geschlossene Deck-/Bodenflächen über echte
   Boolean-Operationen (Clipper) — erfasst auch schräge Deckflächen und
   Überhänge, nicht nur die ersten/letzten N Schichten. Für dichte

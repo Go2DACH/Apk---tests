@@ -39,37 +39,48 @@ class PreviewWidget(gl.GLViewWidget):
         self.grid.setSize(300, 300)
         self.grid.setSpacing(20, 20)
         self.addItem(self.grid)
-        self._peri = None
-        self._infill = None
+        self._items = []
 
     def clear_paths(self):
-        for it in (self._peri, self._infill):
-            if it is not None:
-                self.removeItem(it)
-        self._peri = self._infill = None
+        for it in getattr(self, '_items', []):
+            self.removeItem(it)
+        self._items = []
 
-    def show_paths(self, peri_lines, infill_lines, show_infill=True):
+    def show_paths(self, peri_lines, solid_lines, sparse_lines,
+                   show_infill=True):
+        """Perimeter (nach Z eingefaerbt), Solid (orange), Sparse (cyan)."""
         self.clear_paths()
+        self._items = getattr(self, '_items', [])
+        for it in self._items:
+            self.removeItem(it)
+        self._items = []
+
         seg_p = _lines_to_segments(peri_lines)
-        seg_i = _lines_to_segments(infill_lines) if show_infill else \
+        seg_s = _lines_to_segments(solid_lines) if show_infill else \
             np.zeros((0, 3), dtype=np.float32)
-        allv = np.vstack([v for v in (seg_p, seg_i) if len(v)]) \
-            if (len(seg_p) or len(seg_i)) else np.zeros((0, 3), dtype=np.float32)
-        if not len(allv):
+        seg_q = _lines_to_segments(sparse_lines) if show_infill else \
+            np.zeros((0, 3), dtype=np.float32)
+        parts = [v for v in (seg_p, seg_s, seg_q) if len(v)]
+        if not parts:
             return
+        allv = np.vstack(parts)
         zmin, zmax = float(allv[:, 2].min()), float(allv[:, 2].max())
+
         if len(seg_p):
-            self._peri = gl.GLLinePlotItem(
-                pos=seg_p, color=_color_by_z(seg_p, zmin, zmax),
-                width=2.0, mode='lines', antialias=True)
-            self.addItem(self._peri)
-        if len(seg_i):
-            ci = _color_by_z(seg_i, zmin, zmax)
-            ci[:, 3] = 0.45
-            self._infill = gl.GLLinePlotItem(
-                pos=seg_i, color=ci, width=1.0, mode='lines', antialias=True)
-            self.addItem(self._infill)
-        # Kamera auf Modellmitte
+            it = gl.GLLinePlotItem(pos=seg_p, color=_color_by_z(seg_p, zmin, zmax),
+                                   width=2.0, mode='lines', antialias=True)
+            self.addItem(it); self._items.append(it)
+        if len(seg_s):
+            cs = np.tile(np.array([1.0, 0.55, 0.1, 0.9], np.float32), (len(seg_s), 1))
+            it = gl.GLLinePlotItem(pos=seg_s, color=cs, width=1.5,
+                                   mode='lines', antialias=True)
+            self.addItem(it); self._items.append(it)
+        if len(seg_q):
+            cq = np.tile(np.array([0.2, 0.8, 0.9, 0.5], np.float32), (len(seg_q), 1))
+            it = gl.GLLinePlotItem(pos=seg_q, color=cq, width=1.0,
+                                   mode='lines', antialias=True)
+            self.addItem(it); self._items.append(it)
+
         cx, cy, cz = allv.mean(axis=0)
         self.opts['center'] = Vector(cx, cy, cz)
         span = float(np.linalg.norm(allv.max(axis=0) - allv.min(axis=0)))

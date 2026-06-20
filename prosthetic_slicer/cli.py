@@ -30,8 +30,8 @@ def main(argv=None):
     ap.add_argument('stl')
     ap.add_argument('-o', '--out', required=True)
     ap.add_argument('--profile', help='Profil-JSON laden')
-    ap.add_argument('--field', choices=['planar', 'bottom', 'top', 'reference',
-                                        'wave', 'dome'])
+    ap.add_argument('--field', choices=['planar', 'bottom', 'morph', 'top',
+                                        'reference', 'wave', 'dome'])
     ap.add_argument('--e-mode', dest='e_mode',
                     choices=['volumetric', 'filament', 'pressure'])
     ap.add_argument('--layer-height', type=float, dest='layer_height')

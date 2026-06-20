@@ -17,14 +17,18 @@ from .geometry import build_surface_map, read_stl
 
 CONFORMAL_FIELDS = ('bottom', 'top', 'reference')
 ANALYTIC_FIELDS = ('planar', 'wave', 'dome')
+MORPH_FIELDS = ('morph',)
+ALL_FIELDS = ANALYTIC_FIELDS + CONFORMAL_FIELDS + MORPH_FIELDS
 
 
 class DeformPlan:
     """Buendelt Vor- (Mesh) und Nach- (Bahn) Verformung fuer einen Lauf."""
 
-    def __init__(self, pre_vertex, post_point):
+    def __init__(self, pre_vertex, post_point, thickness_scale=None):
         self.pre_vertex = pre_vertex      # (x,y,z) -> z'   (Mesh vor Slicing)
         self.post_point = post_point      # (x,y,w) -> (x,y,z) (Bahn nach Slicing)
+        # lokale reale Schichtdicke relativ zur Nennhoehe (fuer Flusskorrektur)
+        self.thickness_scale = thickness_scale or (lambda x, y: 1.0)
 
 
 def _identity_pre(x, y, z):
@@ -54,6 +58,44 @@ def make_plan(field, tris, grid, amp=0.0, wavelength=20.0,
             r = math.hypot(x - cx, y - cy)
             return (x, y, w + amp * math.cos(min(math.pi / 2, r / wl * (math.pi / 2))))
         return DeformPlan(_identity_pre, post)
+
+    # --- Morph-Feld: Schichten morphen von Boden (b) zu Decke (t) ---
+    if field == 'morph':
+        bmap = build_surface_map(tris, 'min', grid, smooth)
+        tmap = build_surface_map(tris, 'max', grid, smooth)
+        # Nenndicke T0 = Mittel der lokalen Dicke ueber die Footprint-Zellen
+        thicks = []
+        for k in bmap.cells:
+            b = bmap.cells.get(k)
+            t = tmap.cells.get(k)
+            if b is not None and t is not None and (t - b) > 1e-6:
+                thicks.append(t - b)
+        T0 = (sum(thicks) / len(thicks)) if thicks else 1.0
+        eps = 1e-6
+
+        def _T(x, y):
+            b = bmap.query(x, y)
+            t = tmap.query(x, y)
+            if b is None or t is None:
+                return T0
+            return max(eps, t - b)
+
+        def pre(x, y, z):
+            b = bmap.query(x, y)
+            if b is None:
+                return z
+            return (z - b) / _T(x, y) * T0      # auf Slab der Hoehe T0 abbilden
+
+        def post(x, y, w):
+            b = bmap.query(x, y)
+            if b is None:
+                return (x, y, w)
+            return (x, y, b + (w / T0) * _T(x, y))
+
+        def thickness_scale(x, y):
+            return _T(x, y) / T0                 # lokale Dicke / Nennhoehe
+
+        return DeformPlan(pre, post, thickness_scale)
 
     # --- konforme Felder ---
     if field in CONFORMAL_FIELDS:

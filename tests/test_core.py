@@ -229,6 +229,80 @@ def test_top_bottom_solid_layers():
     assert len(mid.infill) < len(bottom.infill) / 2, "Mitte ist nicht sparse"
 
 
+def wedge(size=40.0, h0=4.0, h1=16.0, n=20):
+    """Keil: Dicke variiert linear ueber X (h0..h1) -> variable Schichtdicke."""
+    def zt(x):
+        return h0 + (h1 - h0) * (x + size / 2) / size
+    tris = []
+    step = size / n
+    h = size / 2
+    # Boden (z=0) und Decke (z=zt(x))
+    for i in range(n):
+        x0 = -h + i * step; x1 = x0 + step
+        for y0 in (-h,):
+            pass
+    for i in range(n):
+        x0 = -h + i * step; x1 = x0 + step
+        # Boden + Decke als zwei Dreiecke ueber volle Y-Breite
+        b00 = (x0, -h, 0.0); b10 = (x1, -h, 0.0); b11 = (x1, h, 0.0); b01 = (x0, h, 0.0)
+        t00 = (x0, -h, zt(x0)); t10 = (x1, -h, zt(x1))
+        t11 = (x1, h, zt(x1)); t01 = (x0, h, zt(x0))
+        tris += [(b00, b11, b10), (b00, b01, b11)]      # Boden
+        tris += [(t00, t10, t11), (t00, t11, t01)]      # Decke
+        tris += [(b00, b10, t10), (b00, t10, t00)]      # Seite y=-h
+        tris += [(b01, t01, t11), (b01, t11, b11)]      # Seite y=+h
+    # Endkappen x=-h und x=+h
+    tris += [((-h, -h, 0), (-h, h, 0), (-h, h, zt(-h))),
+             ((-h, -h, 0), (-h, h, zt(-h)), (-h, -h, zt(-h)))]
+    tris += [((h, -h, 0), (h, h, zt(h)), (h, h, 0)),
+             ((h, -h, 0), (h, -h, zt(h)), (h, h, zt(h)))]
+    return tris
+
+
+def test_morph_variable_thickness_and_flow():
+    """Morph-Feld: Schichtdicke variiert mit Bauteildicke; Fluss skaliert mit."""
+    from prosthetic_slicer import deform, geometry
+    cfg = AppConfig()
+    cfg.process.field = 'morph'
+    cfg.process.perimeters = 1
+    cfg.process.layer_height = 0.6
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'wedge.stl')
+        _write_stl(p, wedge())
+        tris = pipeline.prepare_mesh(p, cfg)
+        result = pipeline.slice_mesh(tris, cfg)
+    # thickness_scale muss ueber X variieren (duenn vorne, dick hinten)
+    ts = result.thickness_scale
+    x0, y0, z0, x1, y1, z1 = geometry.bounds(tris)
+    cy = (y0 + y1) / 2
+    left = ts(x0 + 5, cy)
+    right = ts(x1 - 5, cy)
+    assert right > left * 1.5, "Schichtdicke skaliert nicht mit Bauteildicke (%.2f vs %.2f)" % (left, right)
+    # G-code laeuft und enthaelt E
+    text = __import__('prosthetic_slicer.gcode', fromlist=['write_gcode']).write_gcode(
+        result, cfg.runtime(25.0, 40.0))
+    assert ' E' in text and result.meta['layers'] > 5
+
+
+def test_preview_categories_and_layer_filter():
+    from prosthetic_slicer import preview_data
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    cfg.process.bottom_layers = 3
+    cfg.process.top_layers = 3
+    cfg.process.infill_spacing = 8.0
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'cube.stl')
+        _write_stl(p, cube(size=20.0))
+        _, result, _ = pipeline.run(p, cfg)
+    peri, solid, sparse = preview_data.toolpath_polylines(result)
+    assert peri and solid and sparse, "Kategorien fehlen (peri/solid/sparse)"
+    nmax = preview_data.layer_count(result)
+    # Filter: nur untere Haelfte -> weniger Perimeter-Linien
+    p_half, _, _ = preview_data.toolpath_polylines(result, max_layer=nmax // 2)
+    assert len(p_half) < len(peri)
+
+
 def test_tuning_flow_limit():
     t = tuning.autotune(
         {'nozzle_d': 1.0, 'max_flow_mm3s': 15.0, 'max_speed_mms': 40.0,

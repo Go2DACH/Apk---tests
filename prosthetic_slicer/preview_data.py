@@ -14,14 +14,16 @@ def _resample_deform(post, x0, y0, x1, y1, w, max_seg):
     return out
 
 
-def toolpath_polylines(result, max_seg=1.0, include_infill=True):
-    """Liefert (perimeter_lines, infill_lines) als Listen von [(x,y,z), ...].
+def toolpath_polylines(result, max_seg=1.0, max_layer=None):
+    """Liefert (perimeter_lines, solid_lines, sparse_lines) als Listen von
+    deformierten 3D-Polylinien [(x,y,z), ...].
 
-    Jeder Punkt ist bereits deformiert (echte 3D-Position)."""
+    max_layer: nur Schichten mit index <= max_layer (Vorschau-Slider)."""
     post = result.post_point
-    peri_lines = []
-    infill_lines = []
+    peri_lines, solid_lines, sparse_lines = [], [], []
     for layer in result.layers:
+        if max_layer is not None and layer.index > max_layer:
+            continue
         for poly in layer.perimeters:
             line = []
             for k in range(len(poly) - 1):
@@ -32,11 +34,17 @@ def toolpath_polylines(result, max_seg=1.0, include_infill=True):
                 line.extend(seg)
             if line:
                 peri_lines.append(line)
-        if include_infill:
-            for (a, b) in layer.infill:
-                infill_lines.append(_resample_deform(
-                    post, a[0], a[1], b[0], b[1], layer.w, max_seg))
-    return peri_lines, infill_lines
+        for (a, b) in layer.solid_infill:
+            solid_lines.append(_resample_deform(
+                post, a[0], a[1], b[0], b[1], layer.w, max_seg))
+        for (a, b) in layer.sparse_infill:
+            sparse_lines.append(_resample_deform(
+                post, a[0], a[1], b[0], b[1], layer.w, max_seg))
+    return peri_lines, solid_lines, sparse_lines
+
+
+def layer_count(result):
+    return max((l.index for l in result.layers), default=0)
 
 
 def zrange(lines):

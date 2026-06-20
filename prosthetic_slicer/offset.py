@@ -17,6 +17,33 @@ except Exception:            # pragma: no cover
 _SCALE = 10000.0
 
 
+def _scaled_clean(path):
+    """Skaliert + saeubert einen Pfad fuer Clipper. None wenn degeneriert."""
+    p = _dedupe(path)
+    if len(p) < 3:
+        return None
+    try:
+        sp = pyclipper.scale_to_clipper(p, _SCALE)
+        sp = pyclipper.CleanPolygon(sp)
+    except Exception:
+        return None
+    if not sp or len(sp) < 3:
+        return None
+    return sp
+
+
+def _safe_add(obj, path, *args):
+    """AddPath, ungueltige/degenerierte Pfade still ueberspringen."""
+    sp = _scaled_clean(path)
+    if sp is None:
+        return False
+    try:
+        obj.AddPath(sp, *args)
+        return True
+    except Exception:
+        return False
+
+
 # --------------------------------------------------------------------------- #
 #  Gemeinsame Helfer
 # --------------------------------------------------------------------------- #
@@ -50,10 +77,7 @@ def _cl_normalize(loops):
     pc = pyclipper.Pyclipper()
     added = False
     for lp in loops:
-        lp = _dedupe(lp)
-        if len(lp) >= 3:
-            pc.AddPath(pyclipper.scale_to_clipper(lp, _SCALE),
-                       pyclipper.PT_SUBJECT, True)
+        if _safe_add(pc, lp, pyclipper.PT_SUBJECT, True):
             added = True
     if not added:
         return []
@@ -67,10 +91,7 @@ def _cl_inset(polys, dist):
         return [list(p) for p in polys]
     co = pyclipper.PyclipperOffset()
     for p in polys:
-        sp = _dedupe(p)
-        if len(sp) >= 3:
-            co.AddPath(pyclipper.scale_to_clipper(sp, _SCALE),
-                       pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+        _safe_add(co, p, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
     sol = co.Execute(-dist * _SCALE)        # negativ = nach innen
     return [pyclipper.scale_from_clipper(p, _SCALE) for p in sol]
 
@@ -166,15 +187,11 @@ def _clip(subj, clip, op):
     pc = pyclipper.Pyclipper()
     added_s = added_c = False
     for p in subj:
-        sp = _dedupe(p)
-        if len(sp) >= 3:
-            pc.AddPath(pyclipper.scale_to_clipper(sp, _SCALE),
-                       pyclipper.PT_SUBJECT, True); added_s = True
+        if _safe_add(pc, p, pyclipper.PT_SUBJECT, True):
+            added_s = True
     for p in clip:
-        cp = _dedupe(p)
-        if len(cp) >= 3:
-            pc.AddPath(pyclipper.scale_to_clipper(cp, _SCALE),
-                       pyclipper.PT_CLIP, True); added_c = True
+        if _safe_add(pc, p, pyclipper.PT_CLIP, True):
+            added_c = True
     cmap = {'intersection': pyclipper.CT_INTERSECTION,
             'difference': pyclipper.CT_DIFFERENCE,
             'union': pyclipper.CT_UNION}

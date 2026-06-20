@@ -18,8 +18,10 @@ class GCodeWriter:
                  layer_height=0.6, filament_d=1.75, flow=1.0, max_seg=1.0,
                  print_speed=25.0, travel_speed=40.0, z_lift=0.0,
                  pressure_on='M42 P0 S255', pressure_off='M42 P0 S0',
-                 flavor='generic', start_gcode='', end_gcode=''):
+                 flavor='generic', start_gcode='', end_gcode='',
+                 thickness_scale=None):
         self.post = post_point
+        self.thickness_scale = thickness_scale or (lambda x, y: 1.0)
         self.e_mode = e_mode
         self.cross = line_width * layer_height
         self.area = math.pi * (filament_d * 0.5) ** 2
@@ -38,11 +40,12 @@ class GCodeWriter:
         self.run_open = False
 
     # -- Helpers ---------------------------------------------------------- #
-    def _e_for(self, length3d):
+    def _e_for(self, length3d, ts=1.0):
+        # ts = lokale Schichtdicke / Nennhoehe (variable Schichtdicke beim Morph)
         if self.e_mode == 'volumetric':
-            return self.cross * length3d * self.flow
+            return self.cross * ts * length3d * self.flow
         if self.e_mode == 'filament':
-            return self.cross * length3d * self.flow / self.area
+            return self.cross * ts * length3d * self.flow / self.area
         return 0.0   # pressure: kein E
 
     def _p(self, x, y, w):
@@ -102,7 +105,8 @@ class GCodeWriter:
                             + (dz - prev[2]) ** 2)
             words = ['G1', 'X' + fmt(dx), 'Y' + fmt(dy), 'Z' + fmt(dz)]
             if self.e_mode != 'pressure':
-                words.append('E' + fmt(self._e_for(l3d)))
+                ts = self.thickness_scale(nx, ny)
+                words.append('E' + fmt(self._e_for(l3d, ts)))
             if first:
                 words.append('F%d' % int(self.fp))
                 first = False
@@ -132,13 +136,16 @@ def write_gcode(result, cfg):
         print_speed=cfg['print_speed'], travel_speed=cfg['travel_speed'],
         z_lift=cfg['z_lift'], pressure_on=cfg['pressure_on'],
         pressure_off=cfg['pressure_off'], flavor=cfg['flavor'],
-        start_gcode=cfg['start_gcode'], end_gcode=cfg['end_gcode'])
+        start_gcode=cfg['start_gcode'], end_gcode=cfg['end_gcode'],
+        thickness_scale=getattr(result, 'thickness_scale', None))
     gw.header()
     for layer in result.layers:
         gw.comment('LAYER %d w=%.3f' % (layer.index, layer.w))
         for peri in layer.perimeters:
             gw.polyline(peri, layer.w)
-        for (a, b) in layer.infill:
+        for (a, b) in layer.solid_infill:
+            gw.segment(a, b, layer.w)
+        for (a, b) in layer.sparse_infill:
             gw.segment(a, b, layer.w)
     gw.footer()
     return ''.join(gw.out)
