@@ -29,6 +29,9 @@ Voron-Umbau (300×300×300 mm, 1,0 mm Nadel, 15 mm³/s, Nadel biegt > 50 mm/s).
 - **Konforme & analytische Felder:** `bottom`/`top`/`reference` (formerhaltend),
   `wave`/`dome` (analytisch, zum Testen), `planar`.
 - **Profile** werden als JSON unter `%APPDATA%\ProstheticSlicer\profiles` abgelegt.
+- **Robuster Polygon-Offset** (Clipper/pyclipper): orientierungs- und lochsichere
+  Perimeter ohne Selbstüberschneidung, maßhaltig (Wand-Außenkante = Modellmaß);
+  reiner-Python-Fallback ohne pyclipper.
 - **Bauraum-Check**, **Resampling** langer Bahnen für glatte Kurven, **korrekte
   Flussberechnung entlang der echten 3D-Pfadlänge**.
 

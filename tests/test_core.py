@@ -40,6 +40,23 @@ def cube(size=20.0, cx=0.0, cy=0.0, z0=0.0):
     return t
 
 
+def square_tube(outer=40.0, inner=16.0, h=20.0):
+    """Hohles Quadratrohr (Aussen- + Innenwand) -> gelochter Querschnitt."""
+    def walls(s, ccw):
+        o = s / 2
+        c = [(-o, -o), (o, -o), (o, o), (-o, o)]
+        if not ccw:
+            c = c[::-1]
+        t = []
+        for i in range(4):
+            x0, y0 = c[i]
+            x1, y1 = c[(i + 1) % 4]
+            t.append(((x0, y0, 0.0), (x1, y1, 0.0), (x1, y1, h)))
+            t.append(((x0, y0, 0.0), (x1, y1, h), (x0, y0, h)))
+        return t
+    return walls(outer, True) + walls(inner, False)
+
+
 def slab_on_dome(size=40.0, thick=8.0, dome=6.0, n=20):
     """Platte konstanter Dicke auf einer Kuppel-Unterseite (Prothesen-Analogon)."""
     def zb(x, y):
@@ -131,6 +148,45 @@ def test_bottom_conformal_preserves_outer_shape_and_curves_layers():
     # Aussenform erhalten: XY-Ausdehnung ~ 40 mm (zentriert auf Bett 300)
     xs = [p[0] for p in pts]
     assert (max(xs) - min(xs)) > 35.0
+
+
+def test_offset_holes_no_infill_in_hole():
+    """Robuster Offset: Infill darf nicht ins Loch eines Querschnitts laufen."""
+    from prosthetic_slicer import slicer, offset
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    cfg.process.perimeters = 2
+    cfg.process.line_width = 1.0
+    cfg.process.infill_spacing = 2.0
+    inner = 16.0
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'tube.stl')
+        _write_stl(p, square_tube(outer=40.0, inner=inner))
+        tris = pipeline.prepare_mesh(p, cfg)
+        result = pipeline.slice_mesh(tris, cfg)
+    cx = cy = 150.0    # auf Bett zentriert
+    half = inner / 2.0
+    assert result.layers, "keine Schichten"
+    bad = 0
+    for layer in result.layers:
+        # Perimeter: pro Schicht mindestens Aussen- und Innenwand
+        assert len(layer.perimeters) >= 2
+        for (a, b) in layer.infill:
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            # Mittelpunkt eines Infill-Segments darf nicht tief im Loch liegen
+            if abs(mx - cx) < half - 1.0 and abs(my - cy) < half - 1.0:
+                bad += 1
+    assert bad == 0, "Infill laeuft ins Loch (%d Segmente)" % bad
+
+
+def test_offset_module_available():
+    """Offset-Modul nutzbar; mit pyclipper robuster Pfad, sonst Fallback."""
+    from prosthetic_slicer import offset
+    square = [[(0, 0), (10, 0), (10, 10), (0, 10)]]
+    inner = offset.inset(offset.normalize_loops(square), 1.0)
+    assert inner, "Offset lieferte kein Polygon"
+    if not offset.HAVE_CLIPPER:
+        sys.stderr.write('  (Hinweis: pyclipper fehlt -> naeherungsweiser Fallback)\n')
 
 
 def test_tuning_flow_limit():

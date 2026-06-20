@@ -7,6 +7,7 @@ Nachverformung (post_point), die G-code/Vorschau pro Punkt anwenden.
 import math
 from .deform import make_plan, apply_pre
 from .geometry import bounds
+from . import offset as offset_mod
 
 
 class Layer:
@@ -80,58 +81,6 @@ def stitch(segs):
     return loops
 
 
-def signed_area(loop):
-    a = 0.0
-    n = len(loop)
-    for i in range(n):
-        x0, y0 = loop[i]
-        x1, y1 = loop[(i + 1) % n]
-        a += x0 * y1 - x1 * y0
-    return a * 0.5
-
-
-# --------------------------------------------------------------------------- #
-#  Polygon-Offset (naiv, Kanten-Normalen-Verschiebung)
-# --------------------------------------------------------------------------- #
-
-def offset_loop(loop, dist):
-    """Verschiebt eine Kontur um dist nach innen (CCW positiv = innen)."""
-    n = len(loop)
-    if n < 3:
-        return loop
-    ccw = signed_area(loop) > 0
-    d = dist if ccw else -dist
-    moved = []
-    for i in range(n):
-        p_prev = loop[(i - 1) % n]
-        p = loop[i]
-        p_next = loop[(i + 1) % n]
-        e0 = _norm_left(p_prev, p, d)
-        e1 = _norm_left(p, p_next, d)
-        inter = _line_intersect(e0[0], e0[1], e1[0], e1[1])
-        moved.append(inter if inter else ((e0[1][0] + e1[0][0]) / 2,
-                                          (e0[1][1] + e1[0][1]) / 2))
-    return moved
-
-
-def _norm_left(a, b, d):
-    dx, dy = b[0] - a[0], b[1] - a[1]
-    L = math.hypot(dx, dy)
-    if L < 1e-12:
-        return (a, b)
-    nx, ny = -dy / L * d, dx / L * d
-    return ((a[0] + nx, a[1] + ny), (b[0] + nx, b[1] + ny))
-
-
-def _line_intersect(p1, p2, p3, p4):
-    x1, y1 = p1; x2, y2 = p2; x3, y3 = p3; x4, y4 = p4
-    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-    if abs(den) < 1e-9:
-        return None
-    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den
-    return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
-
-
 # --------------------------------------------------------------------------- #
 #  Infill (Scanlinien, even-odd)
 # --------------------------------------------------------------------------- #
@@ -191,20 +140,14 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
             loops = stitch(segs)
             if loops:
                 layer = Layer(li, z)
-                # Perimeter: nach innen versetzte Waende
-                inner = loops
-                for w_i in range(perimeters):
-                    off = line_width * (0.5 + w_i)
-                    walls = [offset_loop(lp, off) for lp in loops]
-                    for wloop in walls:
-                        layer.perimeters.append(wloop + [wloop[0]])
-                    inner = walls
+                # Robuster Offset: orientierte Polygone, Waende, Infill-Region
+                walls, infill_polys = offset_mod.walls_and_infill(
+                    loops, line_width, perimeters)
+                layer.perimeters = walls
                 axis = 'x' if (li % 2 == 0) else 'y'
-                fill_off = line_width * (perimeters - 0.5) if perimeters else 0.0
-                fill_loops = ([offset_loop(lp, fill_off) for lp in loops]
-                              if perimeters else loops)
-                layer.infill = infill(fill_loops, infill_spacing, axis, bbox)
-                layers.append(layer)
+                layer.infill = infill(infill_polys, infill_spacing, axis, bbox)
+                if walls or layer.infill:
+                    layers.append(layer)
         if progress and li % 10 == 0:
             progress(li, total)
         z += layer_height

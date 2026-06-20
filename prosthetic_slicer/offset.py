@@ -1,0 +1,151 @@
+"""Robuster Polygon-Offset fuer maßhaltige Perimeter und Infill-Begrenzung.
+
+Bevorzugt wird Clipper (pyclipper): vereinigt rohe Schnittkonturen orientiert,
+behandelt Loecher, entfernt Selbstueberschneidungen und versetzt korrekt nach
+innen. Ist pyclipper nicht vorhanden, greift ein reiner-Python-Fallback
+(Kanten-Normalen-Offset) – ausreichend fuer einfache/konvexe Querschnitte.
+"""
+
+import math
+
+try:
+    import pyclipper
+    HAVE_CLIPPER = True
+except Exception:            # pragma: no cover
+    HAVE_CLIPPER = False
+
+_SCALE = 10000.0
+
+
+# --------------------------------------------------------------------------- #
+#  Gemeinsame Helfer
+# --------------------------------------------------------------------------- #
+
+def signed_area(loop):
+    a = 0.0
+    n = len(loop)
+    for i in range(n):
+        x0, y0 = loop[i]
+        x1, y1 = loop[(i + 1) % n]
+        a += x0 * y1 - x1 * y0
+    return a * 0.5
+
+
+def _dedupe(loop):
+    out = []
+    for p in loop:
+        if not out or abs(p[0] - out[-1][0]) > 1e-9 or abs(p[1] - out[-1][1]) > 1e-9:
+            out.append((p[0], p[1]))
+    if len(out) > 1 and abs(out[0][0] - out[-1][0]) < 1e-9 \
+            and abs(out[0][1] - out[-1][1]) < 1e-9:
+        out.pop()
+    return out
+
+
+# --------------------------------------------------------------------------- #
+#  Clipper-Pfad
+# --------------------------------------------------------------------------- #
+
+def _cl_normalize(loops):
+    pc = pyclipper.Pyclipper()
+    added = False
+    for lp in loops:
+        lp = _dedupe(lp)
+        if len(lp) >= 3:
+            pc.AddPath(pyclipper.scale_to_clipper(lp, _SCALE),
+                       pyclipper.PT_SUBJECT, True)
+            added = True
+    if not added:
+        return []
+    sol = pc.Execute(pyclipper.CT_UNION,
+                     pyclipper.PFT_EVENODD, pyclipper.PFT_EVENODD)
+    return [pyclipper.scale_from_clipper(p, _SCALE) for p in sol]
+
+
+def _cl_inset(polys, dist):
+    if dist <= 1e-9:
+        return [list(p) for p in polys]
+    co = pyclipper.PyclipperOffset()
+    for p in polys:
+        sp = _dedupe(p)
+        if len(sp) >= 3:
+            co.AddPath(pyclipper.scale_to_clipper(sp, _SCALE),
+                       pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+    sol = co.Execute(-dist * _SCALE)        # negativ = nach innen
+    return [pyclipper.scale_from_clipper(p, _SCALE) for p in sol]
+
+
+# --------------------------------------------------------------------------- #
+#  Fallback (naiv)
+# --------------------------------------------------------------------------- #
+
+def _naive_inset_loop(loop, dist):
+    loop = _dedupe(loop)
+    n = len(loop)
+    if n < 3:
+        return loop
+    ccw = signed_area(loop) > 0
+    d = dist if ccw else -dist
+    out = []
+    for i in range(n):
+        a = loop[(i - 1) % n]; p = loop[i]; b = loop[(i + 1) % n]
+        e0 = _norm_left(a, p, d)
+        e1 = _norm_left(p, b, d)
+        inter = _line_intersect(e0[0], e0[1], e1[0], e1[1])
+        out.append(inter if inter else p)
+    return out
+
+
+def _norm_left(a, b, d):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(dx, dy)
+    if L < 1e-12:
+        return (a, b)
+    nx, ny = -dy / L * d, dx / L * d
+    return ((a[0] + nx, a[1] + ny), (b[0] + nx, b[1] + ny))
+
+
+def _line_intersect(p1, p2, p3, p4):
+    x1, y1 = p1; x2, y2 = p2; x3, y3 = p3; x4, y4 = p4
+    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(den) < 1e-9:
+        return None
+    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den
+    return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
+
+
+# --------------------------------------------------------------------------- #
+#  Oeffentliche API
+# --------------------------------------------------------------------------- #
+
+def normalize_loops(loops):
+    """Rohe Schnittkonturen -> orientierte Polygone (Aussen CCW, Loch CW)."""
+    if HAVE_CLIPPER:
+        return _cl_normalize(loops)
+    return [_dedupe(lp) for lp in loops if len(_dedupe(lp)) >= 3]
+
+
+def inset(polys, dist):
+    """Versetzt Polygone um dist nach innen (Loecher waxsen mit)."""
+    if HAVE_CLIPPER:
+        return _cl_inset(polys, dist)
+    return [_naive_inset_loop(p, dist) for p in polys]
+
+
+def walls_and_infill(loops, line_width, perimeters):
+    """Liefert (wall_polylines, infill_polys).
+
+    wall_polylines: geschlossene Perimeter-Polylinien (erster Punkt am Ende
+    wiederholt). infill_polys: Polygone, in denen Infill liegen darf."""
+    polys = normalize_loops(loops)
+    walls = []
+    for i in range(perimeters):
+        ring = inset(polys, line_width * (0.5 + i))
+        for r in ring:
+            if len(r) >= 3:
+                walls.append(list(r) + [r[0]])
+    if perimeters > 0:
+        infill_polys = inset(polys, line_width * perimeters)
+    else:
+        infill_polys = polys
+    return walls, infill_polys

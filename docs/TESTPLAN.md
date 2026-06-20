@@ -97,9 +97,10 @@ Silikon-Prothesenkissen (z. B. zwischen Narbe und Metall, Brust-/Fußprothesen).
 
 ## Bekannte Grenzen (Stand 0.1.0)
 
-- Polygon-Offset der Perimeter ist naiv (Kanten-Normalen); stark konkave/
-  mehrfach gelochte Querschnitte können sich selbst schneiden → vor dem Druck
-  in der Vorschau prüfen.
+- Polygon-Offset der Perimeter nutzt Clipper (pyclipper): orientierungs- und
+  lochsicher, ohne Selbstüberschneidung, maßhaltig (Wand-Außenkante = Modellmaß).
+  Ohne pyclipper greift ein näherungsweiser reiner-Python-Fallback — für
+  komplexe Querschnitte dann vor dem Druck in der Vorschau prüfen.
 - Konforme Felder gehen von einer eindeutigen Boden-/Deckfläche je X/Y aus
   (kein Überhang, der dieselbe X/Y zweimal belegt).
 - Keine automatische Stützstruktur (im Bad i. d. R. nicht nötig).
