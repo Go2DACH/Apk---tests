@@ -68,10 +68,25 @@ pip install -r requirements.txt
 python -m prosthetic_slicer
 ```
 
+## Bedienungsanleitung (PDF)
+
+Eine bebilderte Anleitung mit Screenshots liegt unter
+[examples/Anleitung_NonPlanarSiliconeSlicer.pdf](examples/Anleitung_NonPlanarSiliconeSlicer.pdf).
+
+Neu erzeugen (Screenshots brauchen einen Display/Software-OpenGL):
+
+```bash
+python examples/render_breast.py                              # Beispiel-Renderings
+LIBGL_ALWAYS_SOFTWARE=1 QT_QPA_PLATFORM=xcb \
+  xvfb-run -a -s "-screen 0 1400x900x24" \
+  python examples/make_screenshots.py                         # GUI-Screenshots
+python examples/make_manual.py                                # baut das PDF
+```
+
 ## Tests
 
 ```bash
-python tests/test_core.py        # 7 Kerntests (headless, ohne GUI)
+python tests/test_core.py        # Kerntests (headless, ohne GUI)
 ```
 
 Vollständiger manueller Ablauf: siehe [docs/TESTPLAN.md](docs/TESTPLAN.md).
