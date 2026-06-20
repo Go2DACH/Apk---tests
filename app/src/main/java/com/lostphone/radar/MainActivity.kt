@@ -142,6 +142,7 @@ private fun RadarScreen(vm: RadarViewModel = viewModel()) {
             item {
                 if (state.target != null) DirectionPanel(state) else DisclaimerCard()
             }
+            item { NfcReaderButton() }
             if (state.signals.isEmpty()) {
                 item { EmptyHint(state.scanning) }
             } else {
@@ -190,6 +191,23 @@ private fun Header(scanning: Boolean, onToggle: () -> Unit) {
             )
         }
         Button(onClick = onToggle) { Text(if (scanning) "Stopp" else "Scan starten") }
+    }
+}
+
+@Composable
+private fun NfcReaderButton() {
+    val context = LocalContext.current
+    androidx.compose.material3.OutlinedButton(
+        onClick = {
+            context.startActivity(
+                android.content.Intent(context, com.lostphone.radar.nfc.NfcReaderActivity::class.java)
+            )
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(Icons.Filled.SettingsRemote, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("NFC-Tag lesen (z. B. Garagenschlüssel identifizieren)")
     }
 }
 

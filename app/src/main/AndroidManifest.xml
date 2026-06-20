@@ -18,8 +18,12 @@
     <!-- Location is required by Android to return Wi-Fi/BLE scan results -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- NFC: read/identify tags only (no emulation) -->
+    <uses-permission android:name="android.permission.NFC" />
+
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -39,5 +43,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".nfc.NfcReaderActivity"
+            android:exported="false"
+            android:label="NFC-Tag lesen"
+            android:theme="@style/Theme.LostPhoneRadar" />
     </application>
 </manifest>
