@@ -1,0 +1,6 @@
+# Erzeugte Test-Dateien
+examples/test_planar.gcode
+examples/test_warped.gcode
+*.tmp
+__pycache__/
+*.pyc
