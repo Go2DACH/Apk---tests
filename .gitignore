@@ -9,3 +9,4 @@ captures/
 *.apk
 *.keystore
 !gradle/wrapper/gradle-wrapper.jar
+.kotlin/
