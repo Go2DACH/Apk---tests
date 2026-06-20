@@ -1,6 +1,8 @@
 # Erzeugte Test-Dateien
 examples/test_planar.gcode
 examples/test_warped.gcode
+examples/*.stl
+examples/*.gcode
 *.tmp
 __pycache__/
 *.pyc

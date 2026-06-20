@@ -77,6 +77,77 @@ unverändert, und die obersten Schichten folgen non-planar der Kuppel.
   Marlin tun das). Für Silikon ggf. Druckvorlauf/Volumetrie separat abstimmen.
 - Im Bad sind Kollisionen unkritisch, daher darf `--band` groß gewählt werden.
 
+---
+
+# nonplanar_slicer — Eigenständiger non-planarer STL-Slicer
+
+Während `nonplanar_warp.py` fertigen G-code verbiegt, schneidet
+`nonplanar_slicer.py` das **STL-Mesh direkt** in Schichten und erzeugt die
+Werkzeugbahnen selbst. Damit sind echte gekrümmte Schichten durch das ganze
+Bauteil möglich — nicht nur ein verbogener Deckel.
+
+## Kernidee: Deformations-Hook
+
+Jeder ausgegebene Punkt läuft durch eine Funktion `deform(x, y, z)`:
+
+```
+--field planar   klassische flache Schichten (Identität)
+--field wave     Schichten als Sinuswelle in Z   (echtes non-planares Slicing)
+--field dome     Schichten über der Mitte gewölbt
+```
+
+Da beim Silikon-Druck im Bad **kein flaches erstes Layer** nötig ist, sind
+global gewölbte Schichten direkt druckbar — der Hook ist also kein Trick,
+sondern physikalisch nutzbar. Die Extrusionsmenge wird entlang der echten
+**3D-Pfadlänge** nach der Deformation berechnet, der Materialfluss stimmt also.
+
+## Aufruf
+
+```bash
+python3 nonplanar_slicer.py modell.stl -o modell.gcode --field wave --amp 3 --wavelength 18 --report
+```
+
+| Option              | Default      | Bedeutung |
+|---------------------|--------------|-----------|
+| `-o FILE`           | —            | Ausgabe-G-code (Pflicht). |
+| `--layer-height MM` | `0.4`        | Schichthöhe. |
+| `--line-width MM`   | `0.6`        | Bahnbreite (für Flussberechnung). |
+| `--infill-spacing MM`| `3.0`       | Abstand der Infill-Linien. |
+| `--field`           | `planar`     | `planar` / `wave` / `dome`. |
+| `--amp MM`          | `0.0`        | Amplitude der Deformation. |
+| `--wavelength MM`   | `20.0`       | Wellenlänge (wave) bzw. Abfallradius (dome). |
+| `--e-mode`          | `volumetric` | `volumetric` (E = mm³, für Spritzenpumpe) oder `filament`. |
+| `--filament-d MM`   | `1.75`       | nur bei `--e-mode filament`. |
+| `--flow`            | `1.0`        | Fluss-Multiplikator. |
+
+## Selbst testen
+
+```bash
+cd examples
+python3 make_test_stl.py                                   # cube.stl, cylinder.stl
+python3 ../nonplanar_slicer.py cube.stl -o cube.gcode --field planar --report
+python3 ../nonplanar_slicer.py cylinder.stl -o cyl.gcode --field wave --amp 3 --wavelength 18 --report
+```
+
+Verifiziert: planar = konstantes Z pro Schicht & exakte Konturmaße; wave =
+Z folgt der Sinusfläche mit < 0,001 mm Abweichung, Fluss korrekt.
+
+## Stand & nächste Schritte
+
+Dieser Stand ist der **Slicer-Kern (Schritt A)**: STL einlesen, Mesh×Ebene
+schneiden, Konturen zusammensetzen, Perimeter + Infill, 3D-Ausgabe mit
+Deformations-Hook. Robust für konvexe/einfache Geometrien.
+
+Noch offen (nächste Ausbaustufen):
+- **Außenhüllen-konformes Feld** (Schritt B): `deform` an die echte
+  Modelloberfläche koppeln statt analytische Wellen.
+- **Polygon-Offset** der Perimeter (aktuell wird die Schnittkontur direkt
+  gedruckt → Teil ist um ~Bahnbreite/2 größer).
+- Mehrere Wände, Top/Bottom-Solid-Layer, Stützstruktur-freies Bad-Handling,
+  robustes Stitching für konkave/mehrteilige Querschnitte.
+
+---
+
 ## Lizenz
 
 Frei verwendbar. Ohne Gewähr — vor dem ersten echten Druck im Vorschau-Viewer
