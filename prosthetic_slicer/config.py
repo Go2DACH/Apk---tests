@@ -41,6 +41,8 @@ class ProcessProfile:
     line_width: float = 1.0
     perimeters: int = 2
     infill_spacing: float = 3.0
+    top_layers: int = 3
+    bottom_layers: int = 3
     max_seg: float = 1.0                 # Resampling-Laenge fuer Kurven
     z_lift: float = 0.0
     # Non-planar

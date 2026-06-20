@@ -149,3 +149,69 @@ def walls_and_infill(loops, line_width, perimeters):
     else:
         infill_polys = polys
     return walls, infill_polys
+
+
+# --------------------------------------------------------------------------- #
+#  Boolean-Operationen (fuer Top/Bottom-Solid-Flaechen)
+# --------------------------------------------------------------------------- #
+
+def _clip(subj, clip, op):
+    if not HAVE_CLIPPER:
+        # Ohne Clipper keine echten Booleans -> konservativ leere/Subjekt-Menge.
+        if op == 'difference':
+            return [list(p) for p in subj]
+        if op == 'union':
+            return [list(p) for p in subj] + [list(p) for p in clip]
+        return []                      # intersection unbekannt
+    pc = pyclipper.Pyclipper()
+    added_s = added_c = False
+    for p in subj:
+        sp = _dedupe(p)
+        if len(sp) >= 3:
+            pc.AddPath(pyclipper.scale_to_clipper(sp, _SCALE),
+                       pyclipper.PT_SUBJECT, True); added_s = True
+    for p in clip:
+        cp = _dedupe(p)
+        if len(cp) >= 3:
+            pc.AddPath(pyclipper.scale_to_clipper(cp, _SCALE),
+                       pyclipper.PT_CLIP, True); added_c = True
+    cmap = {'intersection': pyclipper.CT_INTERSECTION,
+            'difference': pyclipper.CT_DIFFERENCE,
+            'union': pyclipper.CT_UNION}
+    if op == 'intersection' and not (added_s and added_c):
+        return []
+    if op == 'difference' and not added_s:
+        return []
+    sol = pc.Execute(cmap[op], pyclipper.PFT_NONZERO, pyclipper.PFT_NONZERO)
+    return [pyclipper.scale_from_clipper(p, _SCALE) for p in sol]
+
+
+def intersection(a, b):
+    return _clip(a, b, 'intersection')
+
+
+def difference(a, b):
+    return _clip(a, b, 'difference')
+
+
+def union(a, b):
+    return _clip(a, b, 'union')
+
+
+def intersect_all(polysets):
+    """Schnittmenge mehrerer Polygonmengen. Leere Liste -> leer."""
+    if not polysets:
+        return []
+    acc = [list(p) for p in polysets[0]]
+    for ps in polysets[1:]:
+        if not acc:
+            return []
+        acc = intersection(acc, ps)
+    return acc
+
+
+def area(polys):
+    if HAVE_CLIPPER:
+        return sum(abs(pyclipper.Area(pyclipper.scale_to_clipper(_dedupe(p), _SCALE)))
+                   for p in polys if len(_dedupe(p)) >= 3) / (_SCALE * _SCALE)
+    return sum(abs(signed_area(_dedupe(p))) for p in polys if len(_dedupe(p)) >= 3)

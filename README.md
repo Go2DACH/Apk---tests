@@ -28,6 +28,10 @@ Voron-Umbau (300×300×300 mm, 1,0 mm Nadel, 15 mm³/s, Nadel biegt > 50 mm/s).
   `pressure` (Druck/Zeit über konfigurierbare AN/AUS-Befehle).
 - **Konforme & analytische Felder:** `bottom`/`top`/`reference` (formerhaltend),
   `wave`/`dome` (analytisch, zum Testen), `planar`.
+- **Top/Bottom-Solid-Layer:** geschlossene Deck-/Bodenflächen über echte
+  Boolean-Operationen (Clipper) — erfasst auch schräge Deckflächen und
+  Überhänge, nicht nur die ersten/letzten N Schichten. Für dichte
+  Kontaktflächen an der Anatomie (Narbe/Metall).
 - **Profile** werden als JSON unter `%APPDATA%\ProstheticSlicer\profiles` abgelegt.
 - **Robuster Polygon-Offset** (Clipper/pyclipper): orientierungs- und lochsichere
   Perimeter ohne Selbstüberschneidung, maßhaltig (Wand-Außenkante = Modellmaß);

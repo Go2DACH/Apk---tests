@@ -17,6 +17,8 @@ def build_config(args):
     if args.line_width is not None:   cfg.process.line_width = args.line_width
     if args.perimeters is not None:   cfg.process.perimeters = args.perimeters
     if args.infill is not None:       cfg.process.infill_spacing = args.infill
+    if args.top is not None:          cfg.process.top_layers = args.top
+    if args.bottom is not None:       cfg.process.bottom_layers = args.bottom
     if args.amp is not None:          cfg.process.amp = args.amp
     if args.e_mode is not None:       cfg.material.e_mode = args.e_mode
     if args.reference is not None:    cfg.process.reference_stl = args.reference
@@ -36,6 +38,8 @@ def main(argv=None):
     ap.add_argument('--line-width', type=float, dest='line_width')
     ap.add_argument('--perimeters', type=int)
     ap.add_argument('--infill', type=float)
+    ap.add_argument('--top', type=int, help='Anzahl Top-Solid-Schichten')
+    ap.add_argument('--bottom', type=int, help='Anzahl Bottom-Solid-Schichten')
     ap.add_argument('--amp', type=float)
     ap.add_argument('--reference', help='Referenz-STL fuer field=reference')
     ap.add_argument('--report', action='store_true')

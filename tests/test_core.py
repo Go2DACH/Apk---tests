@@ -58,7 +58,8 @@ def square_tube(outer=40.0, inner=16.0, h=20.0):
 
 
 def slab_on_dome(size=40.0, thick=8.0, dome=6.0, n=20):
-    """Platte konstanter Dicke auf einer Kuppel-Unterseite (Prothesen-Analogon)."""
+    """Wasserdichte Platte konstanter Dicke auf einer Kuppel-Unterseite
+    (Prothesenkissen-Analogon: gekruemmte Kontaktflaeche unten)."""
     def zb(x, y):
         r = math.hypot(x, y) / (size / 2)
         return dome * max(0.0, 1 - r * r)        # Kuppel-Unterseite
@@ -72,12 +73,27 @@ def slab_on_dome(size=40.0, thick=8.0, dome=6.0, n=20):
             for (ax, ay), (bx, by), (cx, cy) in (
                     ((x0, y0), (x1, y0), (x1, y1)),
                     ((x0, y0), (x1, y1), (x0, y1))):
-                # untere und obere Flaeche
                 tris.append(((ax, ay, zb(ax, ay)), (bx, by, zb(bx, by)),
                              (cx, cy, zb(cx, cy))))
                 tris.append(((ax, ay, zb(ax, ay) + thick),
                              (cx, cy, zb(cx, cy) + thick),
                              (bx, by, zb(bx, by) + thick)))
+    # Seitenwaende entlang des Aussenrands -> wasserdicht
+    h = size / 2
+    edge = []
+    for k in range(n + 1):
+        t = -h + k * step
+        edge.append((t, -h));
+    for walk in (
+            [(-h + k * step, -h) for k in range(n + 1)],
+            [(h, -h + k * step) for k in range(n + 1)],
+            [(h - k * step, h) for k in range(n + 1)],
+            [(-h, h - k * step) for k in range(n + 1)]):
+        for k in range(len(walk) - 1):
+            (xa, ya), (xb, yb) = walk[k], walk[k + 1]
+            ba, bb = zb(xa, ya), zb(xb, yb)
+            tris.append(((xa, ya, ba), (xb, yb, bb), (xb, yb, bb + thick)))
+            tris.append(((xa, ya, ba), (xb, yb, bb + thick), (xa, ya, ba + thick)))
     return tris
 
 
@@ -187,6 +203,30 @@ def test_offset_module_available():
     assert inner, "Offset lieferte kein Polygon"
     if not offset.HAVE_CLIPPER:
         sys.stderr.write('  (Hinweis: pyclipper fehlt -> naeherungsweiser Fallback)\n')
+
+
+def test_top_bottom_solid_layers():
+    """Boden-/Deckschichten werden solide, Mitte bleibt sparse."""
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    cfg.process.perimeters = 1
+    cfg.process.line_width = 1.0
+    cfg.process.infill_spacing = 8.0
+    cfg.process.bottom_layers = 3
+    cfg.process.top_layers = 3
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'cube.stl')
+        _write_stl(p, cube(size=20.0))
+        text, result, tune = pipeline.run(p, cfg)
+    n = len(result.layers)
+    assert n > 20
+    bottom = result.layers[0]
+    mid = result.layers[n // 2]
+    top = result.layers[-1]
+    # solide Schichten haben viel dichtere Fuellung als die sparse Mitte
+    assert len(bottom.infill) > 10, "Bodenschicht nicht solide"
+    assert len(top.infill) > 10, "Deckschicht nicht solide"
+    assert len(mid.infill) < len(bottom.infill) / 2, "Mitte ist nicht sparse"
 
 
 def test_tuning_flow_limit():

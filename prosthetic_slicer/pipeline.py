@@ -29,7 +29,9 @@ def slice_mesh(tris, cfg, progress=None):
     return slicer.slice_model(
         tris, p.layer_height, p.line_width, p.perimeters, p.infill_spacing,
         field=p.field, amp=p.amp, wavelength=p.wavelength, reference_stl=ref,
-        surface_grid=p.surface_grid, smooth=p.smooth, progress=progress)
+        surface_grid=p.surface_grid, smooth=p.smooth,
+        top_layers=p.top_layers, bottom_layers=p.bottom_layers,
+        progress=progress)
 
 
 def run(stl_path, cfg, progress=None):

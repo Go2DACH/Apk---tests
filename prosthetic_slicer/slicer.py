@@ -122,7 +122,8 @@ def infill(loops, spacing, axis, bbox):
 
 def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
                 field='planar', amp=0.0, wavelength=20.0, reference_stl=None,
-                surface_grid=2.0, smooth=2, progress=None):
+                surface_grid=2.0, smooth=2, top_layers=3, bottom_layers=3,
+                progress=None):
     plan = make_plan(field, tris, surface_grid, amp, wavelength,
                      reference_stl, smooth)
     work = apply_pre(tris, plan)
@@ -130,7 +131,8 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
     bx0, by0, _, bx1, by1, _ = bounds(tris)
     bbox = (bx0, by0, bx1, by1)
 
-    layers = []
+    # --- Pass A: Geometrie je Schicht sammeln (Waende + Innenregion) ---
+    raw = []
     z = wzmin + layer_height * 0.5
     li = 0
     total = max(1, int((wzmax - wzmin) / layer_height))
@@ -139,20 +141,72 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
         if segs:
             loops = stitch(segs)
             if loops:
-                layer = Layer(li, z)
-                # Robuster Offset: orientierte Polygone, Waende, Infill-Region
                 walls, infill_polys = offset_mod.walls_and_infill(
                     loops, line_width, perimeters)
-                layer.perimeters = walls
-                axis = 'x' if (li % 2 == 0) else 'y'
-                layer.infill = infill(infill_polys, infill_spacing, axis, bbox)
-                if walls or layer.infill:
-                    layers.append(layer)
+                raw.append({'w': z, 'walls': walls, 'region': infill_polys})
         if progress and li % 10 == 0:
             progress(li, total)
         z += layer_height
         li += 1
 
+    # --- Pass B: Solid- (Top/Bottom) und Sparse-Bereiche bestimmen, fuellen ---
+    n = len(raw)
+    layers = []
+    for i in range(n):
+        region = raw[i]['region']
+        solid = _solid_region(raw, i, n, top_layers, bottom_layers)
+        sparse = offset_mod.difference(region, solid) if solid else region
+        layer = Layer(i, raw[i]['w'])
+        layer.perimeters = raw[i]['walls']
+        axis = 'x' if (i % 2 == 0) else 'y'
+        solid_axis = 'x' if (i % 2 == 0) else 'y'
+        lines = []
+        if solid:
+            lines += infill(solid, line_width, solid_axis, bbox)   # 100% solid
+        if sparse and infill_spacing > 0:
+            lines += infill(sparse, infill_spacing, axis, bbox)
+        layer.infill = lines
+        if layer.perimeters or layer.infill:
+            layers.append(layer)
+        if progress and i % 10 == 0:
+            progress(i, n)
+
     meta = {'field': field, 'layers': len(layers),
-            'z_range': (wzmin, wzmax), 'bbox': bbox}
+            'z_range': (wzmin, wzmax), 'bbox': bbox,
+            'top_layers': top_layers, 'bottom_layers': bottom_layers}
     return SliceResult(layers, plan.post_point, meta)
+
+
+def _solid_region(raw, i, n, top_layers, bottom_layers):
+    """Bereich der Schicht i, der solide gefuellt werden muss (Top/Bottom-Shell).
+
+    Mit Clipper: Flaeche, die in den N Schichten darueber/darunter nicht
+    durchgehend gestuetzt ist (erfasst auch schraege Deckflaechen/Ueberhaenge).
+    Ohne Clipper: die ersten/letzten N Schichten werden voll solide."""
+    region = raw[i]['region']
+    if not region or (top_layers <= 0 and bottom_layers <= 0):
+        return []
+    if not offset_mod.HAVE_CLIPPER:
+        if i < bottom_layers or i >= n - top_layers:
+            return [list(p) for p in region]
+        return []
+    solid = []
+    if bottom_layers > 0:
+        below = [raw[i - k]['region'] for k in range(1, bottom_layers + 1)
+                 if i - k >= 0]
+        if len(below) < bottom_layers:
+            solid = [list(p) for p in region]          # nahe Boden: voll solide
+        else:
+            common = offset_mod.intersect_all(below)
+            exposed = offset_mod.difference(region, common)
+            solid = offset_mod.union(solid, exposed) if solid else exposed
+    if top_layers > 0:
+        above = [raw[i + k]['region'] for k in range(1, top_layers + 1)
+                 if i + k < n]
+        if len(above) < top_layers:
+            return [list(p) for p in region]           # nahe Decke: voll solide
+        common = offset_mod.intersect_all(above)
+        exposed = offset_mod.difference(region, common)
+        solid = offset_mod.union(solid, exposed) if solid else exposed
+    # auf die Innenregion begrenzen
+    return offset_mod.intersection(solid, region) if solid else []
