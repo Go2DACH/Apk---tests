@@ -32,7 +32,9 @@ def slice_mesh(tris, cfg, progress=None):
         surface_grid=p.surface_grid, smooth=p.smooth,
         top_layers=p.top_layers, bottom_layers=p.bottom_layers,
         conformity=p.conformity, max_angle=p.max_surface_angle,
-        infill_pattern=p.infill_pattern, progress=progress)
+        infill_pattern=p.infill_pattern, drain_holes=p.drain_holes,
+        drain_diameter=p.drain_diameter, drain_full_channel=p.drain_full_channel,
+        progress=progress)
 
 
 def run(stl_path, cfg, progress=None):

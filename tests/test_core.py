@@ -374,6 +374,49 @@ def test_closed_loop_base_adjust():
     assert dz > 2.0, "Closed-Loop-Korrektur wirkt nicht (%.2f mm)" % dz
 
 
+def test_drain_hole_in_top_shell():
+    """Ablaufloch: obere Solid-Schale hat ein Loch (Gel raus), Boden bleibt zu."""
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    cfg.process.line_width = 1.0
+    cfg.process.infill_spacing = 6.0
+    cfg.process.top_layers = 3
+    cfg.process.bottom_layers = 3
+    cfg.process.drain_holes = 1
+    cfg.process.drain_diameter = 8.0
+    cx = cy = 150.0
+    rad = 3.0
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'cube.stl')
+        _write_stl(p, cube(size=40.0))
+        _, result, _ = pipeline.run(p, cfg)
+    n = len(result.layers)
+    top = result.layers[-1]
+    bottom = result.layers[0]
+
+    def near_center(seg):
+        (a, b) = seg
+        mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        return math.hypot(mx - cx, my - cy) < rad
+
+    top_solid_in_hole = sum(1 for s in top.solid_infill if near_center(s))
+    bottom_solid_in_hole = sum(1 for s in bottom.solid_infill if near_center(s))
+    assert top.solid_infill, "Deckschicht sollte solide sein"
+    assert top_solid_in_hole == 0, "Oberseite hat kein Ablaufloch"
+    # Boden (Brustseite) bleibt geschlossen -> Solid auch im Zentrum
+    assert bottom_solid_in_hole > 0, "Boden sollte geschlossen bleiben"
+
+
+def test_gyroid_is_permeable():
+    """Gyroid-Infill ist offen (kein geschlossener Rand-zu-Rand-Block)."""
+    from prosthetic_slicer import infill3d
+    bbox = (0, 0, 40, 40)
+    region = [[(2, 2), (38, 2), (38, 38), (2, 38)]]
+    segs = infill3d.gyroid_segments(region, w=3.0, bbox=bbox, period=10.0)
+    # offenes Muster: viele kurze Segmente, decken den Bereich nicht vollstaendig
+    assert len(segs) > 20
+
+
 def test_tuning_flow_limit():
     t = tuning.autotune(
         {'nozzle_d': 1.0, 'max_flow_mm3s': 15.0, 'max_speed_mms': 40.0,

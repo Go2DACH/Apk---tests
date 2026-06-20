@@ -35,7 +35,11 @@ Voron-Umbau (300×300×300 mm, 1,0 mm Nadel, 15 mm³/s, Nadel biegt > 50 mm/s).
 - **Nadel-Krümmungsbegrenzung:** die Basisfläche wird auf `max. Bahnneigung`
   (Nadelgrenze) neigungsbegrenzt — steile Formen (z. B. Brustrand) werden
   automatisch druckbar, Außenform bleibt erhalten.
-- **3D-Infill:** Linien (mit Phasenversatz) oder **Gyroid/TPMS** (`infill_pattern`).
+- **3D-Infill:** Linien (mit Phasenversatz) oder **Gyroid/TPMS** (`infill_pattern`)
+  – beide offen/durchlässig, damit das Bad-Gel entweichen kann.
+- **Ablauflöcher (`drain_holes`):** stanzen ein/mehrere Löcher durch die obere
+  Solid-Schale (Boden bleibt geschlossen), sodass das Gel aus dem porösen Inneren
+  abläuft. Optional durchgehender Kanal (`drain_full_channel`).
 - **Closed-Loop (`feedback.py`):** Ist-Höhen einlesen und die non-planare Basis
   für die Folgeschichten live korrigieren (Mock + Moonraker-Skelett).
 - **Top/Bottom-Solid-Layer:** geschlossene Deck-/Bodenflächen über echte

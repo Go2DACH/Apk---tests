@@ -25,6 +25,9 @@ def build_config(args):
     if args.pattern is not None:      cfg.process.infill_pattern = args.pattern
     if args.max_angle is not None:    cfg.process.max_surface_angle = args.max_angle
     if args.conformity is not None:   cfg.process.conformity = args.conformity
+    if args.drain is not None:        cfg.process.drain_holes = args.drain
+    if args.drain_d is not None:      cfg.process.drain_diameter = args.drain_d
+    if args.drain_channel:            cfg.process.drain_full_channel = True
     return cfg
 
 
@@ -51,6 +54,11 @@ def main(argv=None):
                     help='max. Bahnneigung in Grad (Nadel-Krummungsgrenze)')
     ap.add_argument('--conformity', type=float,
                     help='globaler Konformitaets-Multiplikator 0..1')
+    ap.add_argument('--drain', type=int, help='Anzahl Ablaufloecher (Gel)')
+    ap.add_argument('--drain-d', type=float, dest='drain_d',
+                    help='Durchmesser der Ablaufloecher in mm')
+    ap.add_argument('--drain-channel', action='store_true', dest='drain_channel',
+                    help='durchgehender Ablaufkanal (oben+unten) statt nur oben')
     ap.add_argument('--report', action='store_true')
     args = ap.parse_args(argv)
 

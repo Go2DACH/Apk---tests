@@ -98,6 +98,22 @@ echten Raum. Für echte **3D-Vernetzung über Schichten hinweg**:
 - **Fahrplan:** spannungs-/lastorientiertes Infill (Dichte aus einer
   Belastungs-Map, dort dichter, wo die Prothese drückt).
 
+### Durchlässigkeit & Gel-Ablauf (Bad-Druck)
+
+Beim Druck im Gel-Bad sitzt Bad-Gel **im** Bauteil und muss nach dem Druck
+heraus. Zwei Maßnahmen:
+
+- **Durchlässiges Infill:** Gyroid ist bikontinuierlich (offenes, vernetztes
+  Kanalsystem); Linien-Infill mit Abstand ist ebenfalls offen. So kann das Gel
+  im Inneren wandern.
+- **Ablauflöcher (`drain_holes`, `slicer._drain_disks`):** Aus der **oberen**
+  Solid-Schale werden Kreisscheiben subtrahiert → Löcher in der Oberseite, durch
+  die das Gel aus dem porösen Kern austritt. Der Boden (konvexe Brustfläche)
+  bleibt geschlossen. `drain_full_channel` macht stattdessen einen durchgehenden
+  Kanal (oben + unten). Mehrere Löcher werden auf einem Ring verteilt.
+  Wichtig: ohne mindestens ein Loch versiegeln die Solid-Schalen das poröse
+  Innere und das Gel bleibt eingeschlossen.
+
 ---
 
 ## 5. „Basis-Schicht intelligent anpassen"

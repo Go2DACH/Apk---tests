@@ -45,7 +45,11 @@ class ProcessProfile:
     bottom_layers: int = 3
     max_seg: float = 1.0                 # Resampling-Laenge fuer Kurven
     z_lift: float = 0.0
-    infill_pattern: str = "lines"        # lines | gyroid (3D)
+    infill_pattern: str = "lines"        # lines | gyroid (3D, durchlaessig)
+    # Ablauf des Bad-Gels: Loecher durch die Solid-Schale + poroeses Inneres
+    drain_holes: int = 1                 # Anzahl Ablaufloecher (0 = aus)
+    drain_diameter: float = 5.0          # Durchmesser je Loch (mm)
+    drain_full_channel: bool = False     # True: durchgehender Kanal (oben+unten)
     # Non-planar
     field: str = "bottom"                # planar|bottom|morph|top|reference|wave|dome
     amp: float = 0.0                     # nur analytisch

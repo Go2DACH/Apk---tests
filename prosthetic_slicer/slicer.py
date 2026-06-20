@@ -135,6 +135,7 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
                 field='planar', amp=0.0, wavelength=20.0, reference_stl=None,
                 surface_grid=2.0, smooth=2, top_layers=3, bottom_layers=3,
                 conformity=1.0, max_angle=60.0, infill_pattern='lines',
+                drain_holes=0, drain_diameter=5.0, drain_full_channel=False,
                 base_override=None, progress=None):
     plan = make_plan(field, tris, surface_grid, amp, wavelength,
                      reference_stl, smooth, conformity, max_angle,
@@ -162,6 +163,10 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
         z += layer_height
         li += 1
 
+    # --- Ablaufloecher: Gel aus dem Bad muss aus dem poroesen Inneren raus ---
+    z_mid = 0.5 * (wzmin + wzmax)
+    disks = _drain_disks(bbox, drain_holes, drain_diameter) if drain_holes else []
+
     # --- Pass B: Solid- (Top/Bottom) und Sparse-Bereiche bestimmen, fuellen ---
     n = len(raw)
     layers = []
@@ -169,6 +174,14 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
         region = raw[i]['region']
         solid = _solid_region(raw, i, n, top_layers, bottom_layers)
         sparse = offset_mod.difference(region, solid) if solid else region
+        # Ablaufloecher stanzen: aus der Solid-Schale (immer), aus dem poroesen
+        # Inneren nur bei durchgehendem Kanal. Standard: nur obere Haelfte ->
+        # Loch in der Oberseite, Boden/Brustflaeche bleibt geschlossen.
+        if disks and (drain_full_channel or raw[i]['w'] > z_mid):
+            if solid:
+                solid = offset_mod.difference(solid, disks)
+            if drain_full_channel and sparse:
+                sparse = offset_mod.difference(sparse, disks)
         layer = Layer(i, raw[i]['w'])
         layer.perimeters = raw[i]['walls']
         axis = 'x' if (i % 2 == 0) else 'y'
@@ -193,6 +206,30 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
             'top_layers': top_layers, 'bottom_layers': bottom_layers}
     return SliceResult(layers, plan.post_point, meta,
                        thickness_scale=plan.thickness_scale)
+
+
+def _drain_disks(bbox, count, diameter, seg=24):
+    """Kreisscheiben (Polygone) fuer die Ablaufloecher. 1 Loch = Mitte,
+    mehrere = Ring um die Mitte."""
+    import math
+    x0, y0, x1, y1 = bbox
+    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+    r = max(0.5, diameter / 2.0)
+    span = min(x1 - x0, y1 - y0)
+    ring = span * 0.28 if count > 1 else 0.0
+    centers = []
+    if count <= 1:
+        centers = [(cx, cy)]
+    else:
+        for k in range(count):
+            a = 2 * math.pi * k / count
+            centers.append((cx + ring * math.cos(a), cy + ring * math.sin(a)))
+    disks = []
+    for (dx, dy) in centers:
+        disks.append([(dx + r * math.cos(2 * math.pi * s / seg),
+                       dy + r * math.sin(2 * math.pi * s / seg))
+                      for s in range(seg)])
+    return disks
 
 
 def _solid_region(raw, i, n, top_layers, bottom_layers):
