@@ -23,6 +23,33 @@ def compute_tuning(cfg):
          'layer_height': cfg.process.layer_height})
 
 
+def _lowest_points(smap, n, min_sep):
+    """n tiefste, ausreichend getrennte Punkte einer Hoehenkarte -> [(x,y),...]."""
+    import math
+    picked = []
+    for (ix, iy), v in sorted(smap.cells.items(), key=lambda kv: kv[1]):
+        x, y = ix * smap.grid, iy * smap.grid
+        if all(math.hypot(x - px, y - py) >= min_sep for (px, py) in picked):
+            picked.append((x, y))
+            if len(picked) >= n:
+                break
+    return picked
+
+
+def drain_positions(tris, cfg):
+    """Automatische Lochpositionen an der tiefsten Stelle der Kontaktflaeche
+    (Gel-Mulde). None -> Slicer nutzt die Standard-Mittenplatzierung."""
+    p = cfg.process
+    if p.drain_holes <= 0 or not p.drain_auto_position:
+        return None
+    tmap = geometry.build_surface_map(tris, 'max', p.surface_grid, p.smooth)
+    vals = tmap.cells.values()
+    if not vals or (max(vals) - min(vals)) < 1.0:      # ~flach -> Mitte
+        return None
+    sep = max(p.drain_diameter * 1.5, p.surface_grid * 3)
+    return _lowest_points(tmap, p.drain_holes, sep)
+
+
 def slice_mesh(tris, cfg, progress=None):
     p = cfg.process
     ref = p.reference_stl or None
@@ -35,7 +62,7 @@ def slice_mesh(tris, cfg, progress=None):
         infill_pattern=p.infill_pattern, drain_holes=p.drain_holes,
         drain_diameter=p.drain_diameter, drain_full_channel=p.drain_full_channel,
         vent_holes=p.vent_holes, vent_diameter=p.vent_diameter,
-        progress=progress)
+        drain_positions=drain_positions(tris, cfg), progress=progress)
 
 
 def permeability_check(cfg):

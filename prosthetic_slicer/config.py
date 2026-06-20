@@ -50,6 +50,8 @@ class ProcessProfile:
     drain_holes: int = 1                 # Anzahl Ablaufloecher oben (0 = aus)
     drain_diameter: float = 5.0          # Durchmesser je Loch (mm)
     drain_full_channel: bool = False     # True: durchgehender Kanal (oben+unten)
+    drain_auto_position: bool = True     # Loch automatisch an die tiefste
+    #                                      Stelle der Kontaktflaeche (Gel-Mulde)
     vent_holes: int = 0                  # seitliche Entluefter (vertikale Schlitze)
     vent_diameter: float = 4.0           # Durchmesser je Entluefter (mm)
     min_pore_mm: float = 1.0             # Warnschwelle Porengroesse (Durchlaessigkeit)

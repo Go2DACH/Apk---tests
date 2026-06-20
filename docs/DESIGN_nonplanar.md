@@ -108,7 +108,11 @@ heraus. Zwei Maßnahmen:
   im Inneren wandern.
 - **Ablauflöcher (`drain_holes`, `slicer._drain_disks`):** Aus der **oberen**
   Solid-Schale werden Kreisscheiben subtrahiert → Löcher in der Oberseite, durch
-  die das Gel aus dem porösen Kern austritt. Der Boden (konvexe Brustfläche)
+  die das Gel aus dem porösen Kern austritt. Mit `drain_auto_position` (Default)
+  landet das Loch automatisch an der **tiefsten Stelle der Kontaktfläche**
+  (Gel-Mulde, `pipeline.drain_positions` → `_lowest_points`) statt stur in der
+  Mitte – so läuft das Gel beim Ablegen gezielt dorthin und heraus. Die
+  kosmetische Brustvorderseite (Boden) bleibt lochfrei. Der Boden (konvexe Brustfläche)
   bleibt geschlossen. `drain_full_channel` macht stattdessen einen durchgehenden
   Kanal (oben + unten). Mehrere Löcher werden auf einem Ring verteilt.
   Wichtig: ohne mindestens ein Loch versiegeln die Solid-Schalen das poröse

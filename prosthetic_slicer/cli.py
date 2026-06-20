@@ -30,6 +30,7 @@ def build_config(args):
     if args.drain_channel:            cfg.process.drain_full_channel = True
     if args.vents is not None:        cfg.process.vent_holes = args.vents
     if args.vent_d is not None:       cfg.process.vent_diameter = args.vent_d
+    if args.drain_center:             cfg.process.drain_auto_position = False
     return cfg
 
 
@@ -64,6 +65,8 @@ def main(argv=None):
     ap.add_argument('--vents', type=int, help='seitliche Entlueftungsloecher')
     ap.add_argument('--vent-d', type=float, dest='vent_d',
                     help='Durchmesser der Entluefter in mm')
+    ap.add_argument('--drain-center', action='store_true', dest='drain_center',
+                    help='Ablaufloch fix in die Mitte statt auto an die Gel-Mulde')
     ap.add_argument('--report', action='store_true')
     args = ap.parse_args(argv)
 

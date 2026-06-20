@@ -136,7 +136,7 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
                 surface_grid=2.0, smooth=2, top_layers=3, bottom_layers=3,
                 conformity=1.0, max_angle=60.0, infill_pattern='lines',
                 drain_holes=0, drain_diameter=5.0, drain_full_channel=False,
-                vent_holes=0, vent_diameter=4.0,
+                vent_holes=0, vent_diameter=4.0, drain_positions=None,
                 base_override=None, progress=None):
     plan = make_plan(field, tris, surface_grid, amp, wavelength,
                      reference_stl, smooth, conformity, max_angle,
@@ -173,7 +173,8 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
 
     # --- Ablaufloecher: Gel aus dem Bad muss aus dem poroesen Inneren raus ---
     z_mid = 0.5 * (wzmin + wzmax)
-    disks = _drain_disks(bbox, drain_holes, drain_diameter) if drain_holes else []
+    disks = _drain_disks(bbox, drain_holes, drain_diameter,
+                         centers=drain_positions) if drain_holes else []
 
     # --- Pass B: Solid- (Top/Bottom) und Sparse-Bereiche bestimmen, fuellen ---
     n = len(raw)
@@ -216,14 +217,18 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
                        thickness_scale=plan.thickness_scale)
 
 
-def _drain_disks(bbox, count, diameter, seg=24, on_rim=False):
-    """Kreisscheiben (Polygone). on_rim=False: Ablaufloecher (Mitte/Ring um die
-    Mitte). on_rim=True: seitliche Entluefter auf dem Rand verteilt."""
+def _drain_disks(bbox, count, diameter, seg=24, on_rim=False, centers=None):
+    """Kreisscheiben (Polygone). centers: explizite Mittelpunkte (z. B. auto an
+    der Gel-Mulde). Sonst on_rim=True -> Entluefter am Rand, sonst Mitte/Ring."""
     import math
     x0, y0, x1, y1 = bbox
     cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     r = max(0.5, diameter / 2.0)
     span = min(x1 - x0, y1 - y0)
+    if centers:
+        return [[(dx + r * math.cos(2 * math.pi * s / seg),
+                  dy + r * math.sin(2 * math.pi * s / seg))
+                 for s in range(seg)] for (dx, dy) in centers]
     centers = []
     if on_rim:
         ring = span * 0.5                      # auf dem Bauteilrand

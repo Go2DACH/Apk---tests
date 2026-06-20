@@ -439,6 +439,57 @@ def _bbox_area(poly):
     return (max(xs) - min(xs)) * (max(ys) - min(ys))
 
 
+def slab_offset_dip(size=40.0, thick=10.0, dip=8.0, n=24):
+    """Platte mit konkaver Mulde in der Oberseite, deren Tiefpunkt nach +X
+    verschoben ist (asymmetrisch) -> testet Auto-Lochplatzierung."""
+    dipx = size * 0.25
+
+    def zt(x, y):
+        r = math.hypot(x - dipx, y) / (size / 2)
+        return thick - dip * max(0.0, 1 - r * r)      # Mulde um (dipx,0)
+    tris = []
+    step = size / n
+    h = size / 2
+    for i in range(n):
+        for j in range(n):
+            x0 = -h + i * step; y0 = -h + j * step
+            x1, y1 = x0 + step, y0 + step
+            # Boden flach z=0
+            tris += [((x0, y0, 0), (x1, y0, 0), (x1, y1, 0)),
+                     ((x0, y0, 0), (x1, y1, 0), (x0, y1, 0))]
+            # Decke konkav
+            tris += [((x0, y0, zt(x0, y0)), (x1, y1, zt(x1, y1)), (x1, y0, zt(x1, y0))),
+                     ((x0, y0, zt(x0, y0)), (x0, y1, zt(x0, y1)), (x1, y1, zt(x1, y1)))]
+    for walk in (
+            [(-h + k * step, -h) for k in range(n + 1)],
+            [(h, -h + k * step) for k in range(n + 1)],
+            [(h - k * step, h) for k in range(n + 1)],
+            [(-h, h - k * step) for k in range(n + 1)]):
+        for k in range(len(walk) - 1):
+            (xa, ya), (xb, yb) = walk[k], walk[k + 1]
+            tris += [((xa, ya, 0), (xb, yb, 0), (xb, yb, zt(xb, yb))),
+                     ((xa, ya, 0), (xb, yb, zt(xb, yb)), (xa, ya, zt(xa, ya)))]
+    return tris
+
+
+def test_drain_auto_position_at_dip():
+    """Auto-Platzierung: Ablaufloch liegt an der (verschobenen) Gel-Mulde."""
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    cfg.process.drain_holes = 1
+    cfg.process.drain_diameter = 6.0
+    cfg.process.drain_auto_position = True
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'dip.stl')
+        _write_stl(p, slab_offset_dip())
+        tris = pipeline.prepare_mesh(p, cfg)
+        pos = pipeline.drain_positions(tris, cfg)
+    assert pos, "keine Auto-Position berechnet"
+    # Mulde liegt bei x = 150 + 40*0.25 = 160 (nach Zentrierung), nicht bei 150
+    px, py = pos[0]
+    assert px > 155, "Loch nicht an der verschobenen Mulde (x=%.1f)" % px
+
+
 def test_permeability_warning():
     cfg = AppConfig()
     cfg.process.infill_spacing = 1.2     # Pore ~0.2 mm < 1.0

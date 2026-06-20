@@ -39,7 +39,9 @@ Voron-Umbau (300×300×300 mm, 1,0 mm Nadel, 15 mm³/s, Nadel biegt > 50 mm/s).
   – beide offen/durchlässig, damit das Bad-Gel entweichen kann.
 - **Ablauflöcher (`drain_holes`):** stanzen ein/mehrere Löcher durch die obere
   Solid-Schale (Boden bleibt geschlossen), sodass das Gel aus dem porösen Inneren
-  abläuft. Optional durchgehender Kanal (`drain_full_channel`).
+  abläuft. **Auto-Platzierung** an der tiefsten Stelle der Kontaktfläche
+  (`drain_auto_position`); optional durchgehender Kanal (`drain_full_channel`);
+  seitliche **Entlüfter** (`vent_holes`).
 - **Closed-Loop (`feedback.py`):** Ist-Höhen einlesen und die non-planare Basis
   für die Folgeschichten live korrigieren (Mock + Moonraker-Skelett).
 - **Top/Bottom-Solid-Layer:** geschlossene Deck-/Bodenflächen über echte
