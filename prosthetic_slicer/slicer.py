@@ -8,6 +8,7 @@ import math
 from .deform import make_plan, apply_pre
 from .geometry import bounds
 from . import offset as offset_mod
+from . import infill3d
 
 
 class Layer:
@@ -133,9 +134,11 @@ def infill(loops, spacing, axis, bbox, phase=0.0):
 def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
                 field='planar', amp=0.0, wavelength=20.0, reference_stl=None,
                 surface_grid=2.0, smooth=2, top_layers=3, bottom_layers=3,
-                progress=None):
+                conformity=1.0, max_angle=60.0, infill_pattern='lines',
+                base_override=None, progress=None):
     plan = make_plan(field, tris, surface_grid, amp, wavelength,
-                     reference_stl, smooth)
+                     reference_stl, smooth, conformity, max_angle,
+                     base_override=base_override)
     work = apply_pre(tris, plan)
     _, _, wzmin, _, _, wzmax = bounds(work)
     bx0, by0, _, bx1, by1, _ = bounds(tris)
@@ -172,8 +175,14 @@ def slice_model(tris, layer_height, line_width, perimeters, infill_spacing,
         if solid:
             layer.solid_infill = infill(solid, line_width, axis, bbox)  # 100%
         if sparse and infill_spacing > 0:
-            layer.sparse_infill = infill(sparse, infill_spacing, axis, bbox,
-                                         phase=(i % 2) * (infill_spacing / 2.0))
+            if infill_pattern == 'gyroid':
+                layer.sparse_infill = infill3d.gyroid_segments(
+                    sparse, raw[i]['w'], bbox, period=infill_spacing * 2.0,
+                    line_width=line_width)
+            else:
+                layer.sparse_infill = infill(
+                    sparse, infill_spacing, axis, bbox,
+                    phase=(i % 2) * (infill_spacing / 2.0))
         if layer.perimeters or layer.solid_infill or layer.sparse_infill:
             layers.append(layer)
         if progress and i % 10 == 0:

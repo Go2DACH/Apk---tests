@@ -207,6 +207,9 @@ class MainWindow(QMainWindow):
         self.in_wl = _dspin(1, 500, 30, 1, 1, 'mm')
         self.in_grid = _dspin(0.5, 20, 2.0, 0.5, 1, 'mm')
         self.in_smooth = QSpinBox(); self.in_smooth.setRange(0, 20); self.in_smooth.setValue(2)
+        self.in_pattern = QComboBox(); self.in_pattern.addItems(['lines', 'gyroid'])
+        self.in_maxangle = _dspin(5, 89, 45, 1, 0, '°')
+        self.in_conf = _dspin(0, 1, 1.0, 0.05, 2)
         self.in_center = QCheckBox('Auf Bett zentrieren'); self.in_center.setChecked(True)
         self.in_ref = QLineEdit(); self.in_ref.setPlaceholderText('Referenz-STL (field=reference)')
         b_ref = QPushButton('…'); b_ref.clicked.connect(self.on_pick_reference)
@@ -222,6 +225,9 @@ class MainWindow(QMainWindow):
         f.addRow('Top-Solid-Schichten', self.in_top)
         f.addRow('Resampling', self.in_maxseg)
         f.addRow('Non-planar-Feld', self.in_field)
+        f.addRow('Infill-Muster', self.in_pattern)
+        f.addRow('Max. Bahnneigung (Nadel)', self.in_maxangle)
+        f.addRow('Konformität', self.in_conf)
         f.addRow('Amplitude (analyt.)', self.in_amp)
         f.addRow('Wellenlänge', self.in_wl)
         f.addRow('Oberflächen-Raster', self.in_grid)
@@ -259,6 +265,9 @@ class MainWindow(QMainWindow):
         c.process.wavelength = self.in_wl.value()
         c.process.surface_grid = self.in_grid.value()
         c.process.smooth = self.in_smooth.value()
+        c.process.infill_pattern = self.in_pattern.currentText()
+        c.process.max_surface_angle = self.in_maxangle.value()
+        c.process.conformity = self.in_conf.value()
         c.process.center_on_bed = self.in_center.isChecked()
         c.process.reference_stl = self.in_ref.text()
         return c
@@ -291,6 +300,9 @@ class MainWindow(QMainWindow):
         self.in_wl.setValue(c.process.wavelength)
         self.in_grid.setValue(c.process.surface_grid)
         self.in_smooth.setValue(c.process.smooth)
+        self.in_pattern.setCurrentText(c.process.infill_pattern)
+        self.in_maxangle.setValue(c.process.max_surface_angle)
+        self.in_conf.setValue(c.process.conformity)
         self.in_center.setChecked(c.process.center_on_bed)
         self.in_ref.setText(c.process.reference_stl)
 
@@ -348,9 +360,11 @@ class MainWindow(QMainWindow):
         self.lbl_layer.setText('%d / %d' % (nmax, nmax))
         self._refresh_preview()
         self.lbl_status.setText(
-            'Fertig: %d Schichten · Druck %.1f mm/s · Reise %.1f mm/s · %s\n%s'
+            'Fertig: %d Schichten · Druck %.1f mm/s · %s · max Neigung %.0f° '
+            '(Limit %.0f°)\n%s'
             % (result.meta['layers'], tune['print_speed_mms'],
-               tune['travel_speed_mms'], result.meta['field'],
+               result.meta['field'], tune.get('max_surface_angle_deg', 0.0),
+               self.cfg.process.max_surface_angle,
                ' | '.join(tune['warnings'][:2])))
 
     def _on_slice_failed(self, tb):

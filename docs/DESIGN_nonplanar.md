@@ -85,37 +85,48 @@ in Zonen hoher Oberflächenkrümmung (bessere Auflösung), dickere in flachen Zo
 Da die Schichten bereits **gekrümmt** sind, ist das Infill schon non-planar im
 echten Raum. Für echte **3D-Vernetzung über Schichten hinweg**:
 
-- **Umgesetzt (Stufe 1):** Sparse-Infill bekommt pro Schicht einen
-  **Phasenversatz** (`infill(..., phase=…)`) und alternierende Richtung. Über die
-  gekrümmten Schichten entsteht so ein verschränktes Gitter statt deckungsgleicher
-  Linien → bessere Z-Anbindung. (`slicer.py`)
-- **Fahrplan (Stufe 2): Gyroid/TPMS.** Ein 3D-Skalarfeld
-  `g(x,y,z) = sin x·cos y + sin y·cos z + sin z·cos x` auswerten und je Schicht
-  die Iso-Kontur `g = 0` als Infill nehmen. Da unsere Schichten im rektifizierten
-  Raum flach sind, wird Gyroid dort einfach pro Ebene ausgewertet und mit
-  zurückgebogen → **kontinuierliches 3D-Infill, das den gekrümmten Schichten
-  folgt.** Sauber in die bestehende Architektur einsetzbar.
-- **Fahrplan (Stufe 3):** spannungs-/lastorientiertes Infill (Dichte aus einer
-  Belastungs-Map, z. B. dort dichter, wo die Prothese drückt).
+- **Umgesetzt – Linien mit Phasenversatz:** Sparse-Infill bekommt pro Schicht
+  einen Phasenversatz und alternierende Richtung → verschränktes Gitter statt
+  deckungsgleicher Linien (`slicer.py`, `infill(..., phase=…)`).
+- **Umgesetzt – Gyroid/TPMS (`infill3d.py`):** Das 3D-Feld
+  `g(x,y,z) = sin x·cos y + sin y·cos z + sin z·cos x` wird je Schicht auf der
+  rektifizierten Höhe `w` ausgewertet; die Iso-Linie `g = 0` (Marching-Squares,
+  auf die Sparse-Region beschnitten) ist das Infill. Da `w` pro Schicht wächst,
+  verschiebt sich das Muster kontinuierlich → **3D-Infill, das nach dem
+  Zurückbiegen den gekrümmten Schichten folgt.** Aktivierung: `infill_pattern =
+  'gyroid'` bzw. `--pattern gyroid`.
+- **Fahrplan:** spannungs-/lastorientiertes Infill (Dichte aus einer
+  Belastungs-Map, dort dichter, wo die Prothese drückt).
 
 ---
 
 ## 5. „Basis-Schicht intelligent anpassen"
 
-Die Basisfläche `b(x,y)` ist **nicht starr**, sondern wird aus dem Modell (oder
-einem Scan) abgeleitet und aufbereitet:
+Die Basisfläche `b(x,y)` ist **nicht starr**, sondern wird abgeleitet und
+laufend angepasst:
 
-- **Umgesetzt:** `b`/`t` als geglättete Höhenkarten (`geometry.SurfaceMap`,
-  Parameter `surface_grid`, `smooth`), bilinear interpoliert. Über `reference`
-  kann `b` aus einem **separaten Körper-Scan** kommen.
-- **Fahrplan – adaptiv/„unter dem Druck":**
-  1. **Mischen zweier Basen** (z. B. Scan + Soll-Geometrie) mit Gewicht α(x,y).
-  2. **Krümmungsbegrenzung:** `b` so glätten/limitieren, dass die nötige
-     Nadelneigung druckbar bleibt (Kollision/Erreichbarkeit der 40-cm-Nadel).
-  3. **Closed-Loop:** Ist-Höhe aus Sensor/Kamera einlesen und `b` für die
-     folgenden Schichten **live korrigieren** (echte „intelligente Anpassung
-     während des Drucks"). Benötigt eine Rückkanal-Schnittstelle (Klipper-API),
-     daher eigener Ausbauschritt.
+- **Umgesetzt – Ableitung:** `b`/`t` als geglättete, am Rand dilatierte
+  Höhenkarten (`geometry.SurfaceMap`, `surface_grid`, `smooth`), bilinear
+  interpoliert. Über `reference` kann `b` aus einem **separaten Körper-Scan**
+  kommen.
+- **Umgesetzt – Krümmungsbegrenzung (Nadel):** `deform.slope_limit_map`
+  begrenzt den Gradienten von `b`/`t` per Grayscale-Erosion auf
+  `tan(max_surface_angle)`. Dieselbe limitierte Karte wird in `pre` **und**
+  `post` benutzt → **Außenform bleibt erhalten**, nur die Schichtung wird in
+  steilen Zonen sanfter. Damit wird z. B. der senkrechte Brustrand von ~81° auf
+  das eingestellte Limit (z. B. 45°) gebracht und für die 40-cm-Nadel druckbar.
+  (`analysis.result_max_slope_deg` misst die erreichte Neigung an den echten
+  Bahnen und meldet sie.)
+- **Umgesetzt – Closed-Loop-Schnittstelle (`feedback.py`):** `HeightSource`
+  liefert Ist-Höhen; `adjust_base_map` korrigiert `b(x,y)` gedämpft (gain) und
+  begrenzt (max_step). Die korrigierte Karte wird via
+  `slice_model(..., base_override=karte)` neu eingespeist → die folgenden
+  Schichten folgen der gemessenen Realität. `MockHeightSource` für Tests,
+  `MoonrakerHeightSource` als Hardware-Skelett.
+- **Fahrplan – live während des Drucks:** Den Closed-Loop in eine laufende
+  Schleife einbinden (nach Schicht k messen → `b` korrigieren → Rest neu slicen
+  → senden). Benötigt den realen Klipper-/Moonraker-Rückkanal (Tasten/Abfrage),
+  daher noch ungetestet gegen Hardware.
 
 ---
 

@@ -45,14 +45,19 @@ class ProcessProfile:
     bottom_layers: int = 3
     max_seg: float = 1.0                 # Resampling-Laenge fuer Kurven
     z_lift: float = 0.0
+    infill_pattern: str = "lines"        # lines | gyroid (3D)
     # Non-planar
-    field: str = "bottom"                # planar|bottom|top|reference|wave|dome
+    field: str = "bottom"                # planar|bottom|morph|top|reference|wave|dome
     amp: float = 0.0                     # nur analytisch
     wavelength: float = 30.0
     reference_stl: str = ""
     surface_grid: float = 2.0
     smooth: int = 2
     center_on_bed: bool = True
+    # Nadel-Krummungsbegrenzung
+    conformity: float = 1.0              # 0..1, Schichten Richtung planar entspannen
+    max_surface_angle: float = 45.0      # max. Bahnneigung in Grad (Nadelgrenze)
+    auto_conformity: bool = True         # conformity automatisch anpassen
 
 
 @dataclass

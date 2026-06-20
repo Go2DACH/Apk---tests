@@ -3,7 +3,7 @@
 Diese Schicht wird von CLI und GUI gemeinsam genutzt, damit beide identisch
 arbeiten (STL rein, non-planarer G-code raus)."""
 
-from . import geometry, slicer, gcode, tuning
+from . import geometry, slicer, gcode, tuning, analysis, deform
 
 
 def prepare_mesh(stl_path, cfg):
@@ -31,16 +31,24 @@ def slice_mesh(tris, cfg, progress=None):
         field=p.field, amp=p.amp, wavelength=p.wavelength, reference_stl=ref,
         surface_grid=p.surface_grid, smooth=p.smooth,
         top_layers=p.top_layers, bottom_layers=p.bottom_layers,
-        progress=progress)
+        conformity=p.conformity, max_angle=p.max_surface_angle,
+        infill_pattern=p.infill_pattern, progress=progress)
 
 
 def run(stl_path, cfg, progress=None):
-    """Voller Lauf -> (gcode_text, slice_result, tune)."""
+    """Voller Lauf -> (gcode_text, slice_result, tune). tune enthaelt zusaetzlich
+    'max_surface_angle_deg' (erreichte Bahnneigung nach Krummungsbegrenzung)."""
     tris = prepare_mesh(stl_path, cfg)
     tune = compute_tuning(cfg)
     result = slice_mesh(tris, cfg, progress=progress)
     rt = cfg.runtime(tune['print_speed_mms'], tune['travel_speed_mms'])
     text = gcode.write_gcode(result, rt)
+    ang = analysis.result_max_slope_deg(result)
+    tune['max_surface_angle_deg'] = round(ang, 1)
+    if ang > cfg.process.max_surface_angle + 5:
+        tune['warnings'].append(
+            'Bahnneigung %.0f° ueber Ziel %.0f° – Oberflaechen-Raster/Glaettung '
+            'erhoehen.' % (ang, cfg.process.max_surface_angle))
     return text, result, tune
 
 

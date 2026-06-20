@@ -111,6 +111,26 @@ class SurfaceMap:
                 new[(ix, iy)] = tot / n
             self.cells = new
 
+    def dilate(self, iterations=3):
+        """Erweitert die Karte um Randzellen (naechster bekannter Mittelwert),
+        damit bilineare Abfragen am Footprint-Rand keine Spruenge erzeugen."""
+        for _ in range(max(0, iterations)):
+            add = {}
+            for (ix, iy) in list(self.cells.keys()):
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        k = (ix + dx, iy + dy)
+                        if k in self.cells or k in add:
+                            continue
+                        vals = [self.cells.get((k[0] + a, k[1] + b))
+                                for a in (-1, 0, 1) for b in (-1, 0, 1)]
+                        vals = [v for v in vals if v is not None]
+                        if vals:
+                            add[k] = sum(vals) / len(vals)
+            if not add:
+                break
+            self.cells.update(add)
+
     def min_value(self):
         return min(self.cells.values()) if self.cells else 0.0
 
@@ -149,4 +169,5 @@ def build_surface_map(tris, mode, grid, smooth=2):
     for (a, b, c) in tris:
         sm.add_triangle(a, b, c)
     sm.smooth(smooth)
+    sm.dilate(3)          # Randzellen auffuellen -> glatte Abfrage am Rand
     return sm

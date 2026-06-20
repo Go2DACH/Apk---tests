@@ -22,6 +22,9 @@ def build_config(args):
     if args.amp is not None:          cfg.process.amp = args.amp
     if args.e_mode is not None:       cfg.material.e_mode = args.e_mode
     if args.reference is not None:    cfg.process.reference_stl = args.reference
+    if args.pattern is not None:      cfg.process.infill_pattern = args.pattern
+    if args.max_angle is not None:    cfg.process.max_surface_angle = args.max_angle
+    if args.conformity is not None:   cfg.process.conformity = args.conformity
     return cfg
 
 
@@ -42,6 +45,12 @@ def main(argv=None):
     ap.add_argument('--bottom', type=int, help='Anzahl Bottom-Solid-Schichten')
     ap.add_argument('--amp', type=float)
     ap.add_argument('--reference', help='Referenz-STL fuer field=reference')
+    ap.add_argument('--pattern', choices=['lines', 'gyroid'],
+                    help='Sparse-Infill-Muster')
+    ap.add_argument('--max-angle', type=float, dest='max_angle',
+                    help='max. Bahnneigung in Grad (Nadel-Krummungsgrenze)')
+    ap.add_argument('--conformity', type=float,
+                    help='globaler Konformitaets-Multiplikator 0..1')
     ap.add_argument('--report', action='store_true')
     args = ap.parse_args(argv)
 
@@ -60,10 +69,12 @@ def main(argv=None):
     if args.report:
         sys.stderr.write(
             '[slicer] Feld=%s Schichten=%d | Druck %.1f mm/s, Reise %.1f mm/s, '
-            'Fluss %.1f mm^3/s -> %s\n' % (
+            'Fluss %.1f mm^3/s | max Neigung %.1f° (Limit %.0f°) -> %s\n' % (
                 result.meta['field'], result.meta['layers'],
                 tune['print_speed_mms'], tune['travel_speed_mms'],
-                tune['effective_flow_mm3s'], args.out))
+                tune['effective_flow_mm3s'],
+                tune.get('max_surface_angle_deg', 0.0),
+                cfg.process.max_surface_angle, args.out))
         for w in tune['warnings']:
             sys.stderr.write('  ! ' + w + '\n')
     return 0

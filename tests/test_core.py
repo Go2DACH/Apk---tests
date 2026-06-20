@@ -303,6 +303,77 @@ def test_preview_categories_and_layer_filter():
     assert len(p_half) < len(peri)
 
 
+def test_curvature_limit_needle():
+    """Krummungsbegrenzung: steile Kuppel -> Bahnneigung wird auf das Limit
+    gebracht (Nadel druckbar)."""
+    cfg = AppConfig()
+    cfg.process.field = 'bottom'
+    cfg.process.perimeters = 1
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'steep.stl')
+        _write_stl(p, slab_on_dome(size=40.0, thick=6.0, dome=28.0))  # steil
+        # ohne wirksames Limit
+        cfg.process.max_surface_angle = 89.0
+        _, _, t_hi = pipeline.run(p, cfg)
+        # mit Nadelgrenze 30°
+        cfg.process.max_surface_angle = 30.0
+        _, _, t_lo = pipeline.run(p, cfg)
+    assert t_hi['max_surface_angle_deg'] > 45.0, "Testkoerper nicht steil genug"
+    assert t_lo['max_surface_angle_deg'] <= 36.0, \
+        "Krummungsbegrenzung greift nicht (%.1f°)" % t_lo['max_surface_angle_deg']
+
+
+def test_gyroid_3d_infill():
+    """Gyroid: Sparse-Infill vorhanden, im Bereich, und variiert ueber Schichten."""
+    from prosthetic_slicer import infill3d
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    cfg.process.infill_pattern = 'gyroid'
+    cfg.process.infill_spacing = 4.0
+    cfg.process.top_layers = 0
+    cfg.process.bottom_layers = 0
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'cube.stl')
+        _write_stl(p, cube(size=30.0))
+        _, result, _ = pipeline.run(p, cfg)
+    total = sum(len(l.sparse_infill) for l in result.layers)
+    assert total > 50, "Gyroid lieferte kaum Segmente"
+    # Muster verschiebt sich mit der Hoehe -> 3D (Segmentanzahl variiert)
+    counts = [len(l.sparse_infill) for l in result.layers[:10]]
+    assert len(set(counts)) > 1, "Gyroid-Muster variiert nicht ueber Schichten"
+
+
+def test_closed_loop_base_adjust():
+    """Closed-Loop: gemessene Ist-Hoehe verschiebt die Basis und damit die
+    folgenden Schichten."""
+    from prosthetic_slicer import geometry, deform, feedback
+    cfg = AppConfig()
+    cfg.process.field = 'bottom'
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'slab.stl')
+        _write_stl(p, slab_on_dome())
+        tris = pipeline.prepare_mesh(p, cfg)
+    grid = cfg.process.surface_grid
+    cx = 150.0
+    base0 = geometry.build_surface_map(tris, 'min', grid, cfg.process.smooth)
+    base1 = geometry.build_surface_map(tris, 'min', grid, cfg.process.smooth)
+    # Lokale Messabweichung: Ist-Hoehe nur in der rechten Haelfte +3 mm
+    src = feedback.MockHeightSource(
+        lambda x, y: (base1.query(x, y) or 0) + (3.0 if x > cx else 0.0))
+    n = feedback.adjust_base_map(base1, src, gain=1.0, max_step=5.0)
+    assert n > 0
+    # Plaene mit/ohne Korrektur am angehobenen Punkt vergleichen
+    plan0 = deform.make_plan('bottom', tris, grid, smooth=cfg.process.smooth,
+                             max_angle=cfg.process.max_surface_angle,
+                             base_override=base0)
+    plan1 = deform.make_plan('bottom', tris, grid, smooth=cfg.process.smooth,
+                             max_angle=cfg.process.max_surface_angle,
+                             base_override=base1)
+    px, py, w = cx + 25, 150.0, 1.0
+    dz = plan1.post_point(px, py, w)[2] - plan0.post_point(px, py, w)[2]
+    assert dz > 2.0, "Closed-Loop-Korrektur wirkt nicht (%.2f mm)" % dz
+
+
 def test_tuning_flow_limit():
     t = tuning.autotune(
         {'nozzle_d': 1.0, 'max_flow_mm3s': 15.0, 'max_speed_mms': 40.0,

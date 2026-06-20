@@ -32,6 +32,12 @@ Voron-Umbau (300×300×300 mm, 1,0 mm Nadel, 15 mm³/s, Nadel biegt > 50 mm/s).
   Mathematik/Fahrplan: siehe [docs/DESIGN_nonplanar.md](docs/DESIGN_nonplanar.md).
 - **3D-Vorschau:** Schicht-Slider (nur bis Schicht X) und Farbtrennung
   Perimeter / Solid (orange) / Sparse (cyan).
+- **Nadel-Krümmungsbegrenzung:** die Basisfläche wird auf `max. Bahnneigung`
+  (Nadelgrenze) neigungsbegrenzt — steile Formen (z. B. Brustrand) werden
+  automatisch druckbar, Außenform bleibt erhalten.
+- **3D-Infill:** Linien (mit Phasenversatz) oder **Gyroid/TPMS** (`infill_pattern`).
+- **Closed-Loop (`feedback.py`):** Ist-Höhen einlesen und die non-planare Basis
+  für die Folgeschichten live korrigieren (Mock + Moonraker-Skelett).
 - **Top/Bottom-Solid-Layer:** geschlossene Deck-/Bodenflächen über echte
   Boolean-Operationen (Clipper) — erfasst auch schräge Deckflächen und
   Überhänge, nicht nur die ersten/letzten N Schichten. Für dichte

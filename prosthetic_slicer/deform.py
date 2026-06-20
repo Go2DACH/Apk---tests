@@ -13,7 +13,7 @@ Zwei Kategorien:
 """
 
 import math
-from .geometry import build_surface_map, read_stl
+from .geometry import build_surface_map, read_stl, SurfaceMap
 
 CONFORMAL_FIELDS = ('bottom', 'top', 'reference')
 ANALYTIC_FIELDS = ('planar', 'wave', 'dome')
@@ -35,8 +35,36 @@ def _identity_pre(x, y, z):
     return z
 
 
+def slope_limit_map(smap, max_angle_deg, iters=400):
+    """Begrenzt den Gradienten einer Hoehenkarte auf tan(max_angle) (Nadelgrenze).
+
+    Grayscale-Erosion: senkt Spitzen iterativ, bis kein Nachbar mehr steiler als
+    die Grenze ist. Wird in pre UND post mit derselben (limitierten) Karte
+    verwendet -> Aussenform bleibt erhalten, nur die Schichtung wird sanfter."""
+    step = math.tan(math.radians(max(1.0, min(89.0, max_angle_deg)))) * smap.grid
+    cells = smap.cells
+    for _ in range(iters):
+        changed = False
+        for k in list(cells.keys()):
+            v = cells[k]
+            ix, iy = k
+            for (dx, dy) in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nb = cells.get((ix + dx, iy + dy))
+                if nb is not None and v - nb > step:
+                    v = nb + step
+                    changed = True
+            cells[k] = v
+        if not changed:
+            break
+    return smap
+
+
 def make_plan(field, tris, grid, amp=0.0, wavelength=20.0,
-              reference_stl=None, smooth=2):
+              reference_stl=None, smooth=2, conformity=1.0, max_angle=60.0,
+              base_override=None):
+    """conformity (0..1): globaler Multiplikator auf die Konformitaet.
+    max_angle: lokale Krummungsbegrenzung in Grad (Nadelgrenze) – die Schichten
+    werden punktweise nur dort Richtung planar entspannt, wo es noetig ist."""
     """Erzeugt einen DeformPlan fuer das gewuenschte Feld."""
     x0 = min(v[0] for t in tris for v in t)
     x1 = max(v[0] for t in tris for v in t)
@@ -63,6 +91,9 @@ def make_plan(field, tris, grid, amp=0.0, wavelength=20.0,
     if field == 'morph':
         bmap = build_surface_map(tris, 'min', grid, smooth)
         tmap = build_surface_map(tris, 'max', grid, smooth)
+        # Basisflaechen auf die Nadelgrenze neigungsbegrenzen (Krummungslimit)
+        slope_limit_map(bmap, max_angle)
+        slope_limit_map(tmap, max_angle)
         # Nenndicke T0 = Mittel der lokalen Dicke ueber die Footprint-Zellen
         thicks = []
         for k in bmap.cells:
@@ -80,20 +111,24 @@ def make_plan(field, tris, grid, amp=0.0, wavelength=20.0,
                 return T0
             return max(eps, t - b)
 
+        c = conformity
+
         def pre(x, y, z):
             b = bmap.query(x, y)
             if b is None:
                 return z
-            return (z - b) / _T(x, y) * T0      # auf Slab der Hoehe T0 abbilden
+            morph = (z - b) / _T(x, y) * T0      # auf Slab der Hoehe T0 abbilden
+            return (1 - c) * z + c * morph
 
         def post(x, y, w):
             b = bmap.query(x, y)
             if b is None:
                 return (x, y, w)
-            return (x, y, b + (w / T0) * _T(x, y))
+            morph = b + (w / T0) * _T(x, y)
+            return (x, y, (1 - c) * w + c * morph)
 
         def thickness_scale(x, y):
-            return _T(x, y) / T0                 # lokale Dicke / Nennhoehe
+            return 1.0 + c * (_T(x, y) / T0 - 1.0)
 
         return DeformPlan(pre, post, thickness_scale)
 
@@ -107,17 +142,20 @@ def make_plan(field, tris, grid, amp=0.0, wavelength=20.0,
         else:
             ref_tris = tris
             mode = 'min' if field == 'bottom' else 'max'
-        ref = build_surface_map(ref_tris, mode, grid, smooth)
+        # base_override erlaubt eine live-korrigierte Basiskarte (closed-loop)
+        ref = base_override or build_surface_map(ref_tris, mode, grid, smooth)
+        slope_limit_map(ref, max_angle)         # Krummungslimit (Nadelgrenze)
         rmin = ref.min_value()
+        c = conformity
 
         def pre(x, y, z):
             r = ref.query(x, y)
-            off = 0.0 if r is None else (r - rmin)
+            off = 0.0 if r is None else c * (r - rmin)
             return z - off
 
         def post(x, y, w):
             r = ref.query(x, y)
-            off = 0.0 if r is None else (r - rmin)
+            off = 0.0 if r is None else c * (r - rmin)
             return (x, y, w + off)
 
         return DeformPlan(pre, post)
