@@ -1,0 +1,69 @@
+"""Kommandozeilen-Schnittstelle (headless): STL -> non-planarer G-code.
+
+Nutzt dieselbe Pipeline wie die GUI. Ideal fuer Automatisierung und Tests.
+"""
+
+import argparse
+import sys
+from .config import AppConfig
+from . import pipeline
+
+
+def build_config(args):
+    cfg = AppConfig.load(args.profile) if args.profile else AppConfig()
+    # CLI-Overrides
+    if args.field is not None:        cfg.process.field = args.field
+    if args.layer_height is not None: cfg.process.layer_height = args.layer_height
+    if args.line_width is not None:   cfg.process.line_width = args.line_width
+    if args.perimeters is not None:   cfg.process.perimeters = args.perimeters
+    if args.infill is not None:       cfg.process.infill_spacing = args.infill
+    if args.amp is not None:          cfg.process.amp = args.amp
+    if args.e_mode is not None:       cfg.material.e_mode = args.e_mode
+    if args.reference is not None:    cfg.process.reference_stl = args.reference
+    return cfg
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description='Non-planarer Silikon-Slicer (CLI).')
+    ap.add_argument('stl')
+    ap.add_argument('-o', '--out', required=True)
+    ap.add_argument('--profile', help='Profil-JSON laden')
+    ap.add_argument('--field', choices=['planar', 'bottom', 'top', 'reference',
+                                        'wave', 'dome'])
+    ap.add_argument('--e-mode', dest='e_mode',
+                    choices=['volumetric', 'filament', 'pressure'])
+    ap.add_argument('--layer-height', type=float, dest='layer_height')
+    ap.add_argument('--line-width', type=float, dest='line_width')
+    ap.add_argument('--perimeters', type=int)
+    ap.add_argument('--infill', type=float)
+    ap.add_argument('--amp', type=float)
+    ap.add_argument('--reference', help='Referenz-STL fuer field=reference')
+    ap.add_argument('--report', action='store_true')
+    args = ap.parse_args(argv)
+
+    cfg = build_config(args)
+    tris = pipeline.prepare_mesh(args.stl, cfg)
+    errs = pipeline.check_fits_bed(tris, cfg)
+    if errs:
+        for e in errs:
+            sys.stderr.write('FEHLER: ' + e + '\n')
+        return 2
+
+    text, result, tune = pipeline.run(args.stl, cfg)
+    with open(args.out, 'w') as f:
+        f.write(text)
+
+    if args.report:
+        sys.stderr.write(
+            '[slicer] Feld=%s Schichten=%d | Druck %.1f mm/s, Reise %.1f mm/s, '
+            'Fluss %.1f mm^3/s -> %s\n' % (
+                result.meta['field'], result.meta['layers'],
+                tune['print_speed_mms'], tune['travel_speed_mms'],
+                tune['effective_flow_mm3s'], args.out))
+        for w in tune['warnings']:
+            sys.stderr.write('  ! ' + w + '\n')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

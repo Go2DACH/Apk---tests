@@ -1,4 +1,61 @@
-# nonplanar_warp — Non-planarer Post-Processor für OrcaSlicer / PrusaSlicer
+# Non-Planar Silicone Slicer
+
+Windows-Anwendung (mit 3D-Vorschau) und Slicer-Engine, die ein **STL direkt in
+non-planaren G-code** für Silikon-Druck im Bad umwandelt — gedacht für
+Prothesenkissen (z. B. zwischen Narbe und Metall, Brust-/Fußprothesen) auf einem
+Voron-Umbau (300×300×300 mm, 1,0 mm Nadel, 15 mm³/s, Nadel biegt > 50 mm/s).
+
+> **Ziel:** STL rein → non-planarer G-code raus. Die Schichten folgen der
+> **Bodenfläche** des Bauteils (konforme Schichtung, Außenform bleibt exakt
+> erhalten), sodass die Kontaktfläche der Anatomie folgt.
+
+## Komponenten
+
+| Teil | Zweck |
+|------|-------|
+| **GUI-App** (`prosthetic_slicer/`) | STL laden, alle Parameter konfigurieren + als Profil speichern, slicen, 3D-Vorschau, G-code exportieren. Start: `python -m prosthetic_slicer` oder über den Windows-Installer. |
+| **CLI** (`prosthetic_slicer.cli`) | Headless: `python -m prosthetic_slicer.cli modell.stl -o out.gcode --field bottom --report` |
+| **Slicer-Kern** | Reines Python (keine schweren Abhängigkeiten): STL→Konturen→Perimeter/Infill→3D-G-code mit Deformations-Hook. |
+| `nonplanar_warp.py` | Älteres Post-Processing-Skript für OrcaSlicer/PrusaSlicer (siehe unten). |
+| `nonplanar_slicer.py` | Früherer eigenständiger Slicer-Prototyp (siehe unten). |
+
+## Wichtige Eigenschaften
+
+- **Selbst-Tuning:** Druckgeschwindigkeit = min(Flussgrenze, Biegegrenze). Bei
+  1,0 mm × 0,6 mm Querschnitt → 15 ÷ 0,6 = **25 mm/s** (unter der 40-mm/s-Kappung
+  für die biegende Nadel). Reisewege ebenfalls gekappt.
+- **Drei Dosier-Modi:** `volumetric` (mm³, Spritzenpumpe), `filament` (mm),
+  `pressure` (Druck/Zeit über konfigurierbare AN/AUS-Befehle).
+- **Konforme & analytische Felder:** `bottom`/`top`/`reference` (formerhaltend),
+  `wave`/`dome` (analytisch, zum Testen), `planar`.
+- **Profile** werden als JSON unter `%APPDATA%\ProstheticSlicer\profiles` abgelegt.
+- **Bauraum-Check**, **Resampling** langer Bahnen für glatte Kurven, **korrekte
+  Flussberechnung entlang der echten 3D-Pfadlänge**.
+
+## Installation (Windows)
+
+Der **Windows-Installer wird per GitHub Actions automatisch gebaut** (Workflow
+`.github/workflows/build-windows.yml`): bei jedem Push auf den Branch entsteht
+ein Setup unter *Actions → Artifacts → NonPlanarSiliconeSlicer-Setup*.
+
+Lokal entwickeln/starten:
+
+```bash
+pip install -r requirements.txt
+python -m prosthetic_slicer
+```
+
+## Tests
+
+```bash
+python tests/test_core.py        # 7 Kerntests (headless, ohne GUI)
+```
+
+Vollständiger manueller Ablauf: siehe [docs/TESTPLAN.md](docs/TESTPLAN.md).
+
+---
+
+# nonplanar_warp — Post-Processor für OrcaSlicer / PrusaSlicer (älter)
 
 Ein Post-Processing-Skript, das flach geslicten G-code so **verbiegt, dass die
 oberen Schichten der gekrümmten Außenhülle des Modells folgen** (non-planares /

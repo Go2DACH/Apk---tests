@@ -1,0 +1,198 @@
+"""Headless-Tests des Slicer-Kerns (ohne GUI). Mit pytest oder direkt lauffaehig."""
+
+import os
+import sys
+import struct
+import math
+import tempfile
+import re
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from prosthetic_slicer import geometry, slicer, gcode, tuning, pipeline
+from prosthetic_slicer.config import AppConfig
+
+
+# --------------------------------------------------------------------------- #
+#  Test-STL-Helfer
+# --------------------------------------------------------------------------- #
+
+def _write_stl(path, tris):
+    with open(path, 'wb') as f:
+        f.write(b'\0' * 80)
+        f.write(struct.pack('<I', len(tris)))
+        for (a, b, c) in tris:
+            f.write(struct.pack('<12fH', 0, 0, 0, *a, *b, *c, 0))
+
+
+def cube(size=20.0, cx=0.0, cy=0.0, z0=0.0):
+    s = size
+    x0, x1 = cx - s / 2, cx + s / 2
+    y0, y1 = cy - s / 2, cy + s / 2
+    z1 = z0 + s
+    v = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+         (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)]
+    q = [(0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1),
+         (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]
+    t = []
+    for (a, b, c, d) in q:
+        t += [(v[a], v[b], v[c]), (v[a], v[c], v[d])]
+    return t
+
+
+def slab_on_dome(size=40.0, thick=8.0, dome=6.0, n=20):
+    """Platte konstanter Dicke auf einer Kuppel-Unterseite (Prothesen-Analogon)."""
+    def zb(x, y):
+        r = math.hypot(x, y) / (size / 2)
+        return dome * max(0.0, 1 - r * r)        # Kuppel-Unterseite
+    tris = []
+    step = size / n
+    for i in range(n):
+        for j in range(n):
+            x0 = -size / 2 + i * step
+            y0 = -size / 2 + j * step
+            x1, y1 = x0 + step, y0 + step
+            for (ax, ay), (bx, by), (cx, cy) in (
+                    ((x0, y0), (x1, y0), (x1, y1)),
+                    ((x0, y0), (x1, y1), (x0, y1))):
+                # untere und obere Flaeche
+                tris.append(((ax, ay, zb(ax, ay)), (bx, by, zb(bx, by)),
+                             (cx, cy, zb(cx, cy))))
+                tris.append(((ax, ay, zb(ax, ay) + thick),
+                             (cx, cy, zb(cx, cy) + thick),
+                             (bx, by, zb(bx, by) + thick)))
+    return tris
+
+
+# --------------------------------------------------------------------------- #
+#  Tests
+# --------------------------------------------------------------------------- #
+
+def _gcode_points(text):
+    pts = []
+    curz = None
+    for ln in text.splitlines():
+        c = ln.split(';', 1)[0]
+        d = dict(re.findall(r'([XYZEF])(-?\d+\.?\d*)', c))
+        if 'Z' in d:
+            curz = float(d['Z'])
+        if ('X' in d or 'Y' in d) and curz is not None:
+            pts.append((float(d.get('X', 'nan')), float(d.get('Y', 'nan')),
+                        curz, float(d.get('E', '0') or 0)))
+    return pts
+
+
+def test_stl_roundtrip():
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'cube.stl')
+        _write_stl(p, cube())
+        tris = geometry.read_stl(p)
+        assert len(tris) == 12
+        x0, y0, z0, x1, y1, z1 = geometry.bounds(tris)
+        assert abs((x1 - x0) - 20) < 1e-4 and abs((z1 - z0) - 20) < 1e-4
+
+
+def test_planar_cube_dimensions():
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    cfg.process.perimeters = 1
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'cube.stl')
+        _write_stl(p, cube(size=20.0))
+        text, result, tune = pipeline.run(p, cfg)
+    pts = _gcode_points(text)
+    assert len(result.layers) > 25
+    # eine Schicht in der Mitte: Z konstant (planar)
+    mid_z = sorted(set(round(p[2], 3) for p in pts))[len(set(p[2] for p in pts)) // 2]
+    layer_pts = [p for p in pts if abs(p[2] - mid_z) < 1e-6]
+    assert layer_pts, "keine Punkte in mittlerer Schicht"
+    zs = set(round(p[2], 4) for p in layer_pts)
+    assert len(zs) == 1, "planare Schicht muss konstantes Z haben"
+
+
+def test_bottom_conformal_preserves_outer_shape_and_curves_layers():
+    """Konformes Slicing: Aussenform bleibt, untere Schichten folgen der Kuppel."""
+    cfg = AppConfig()
+    cfg.process.field = 'bottom'
+    cfg.process.perimeters = 1
+    cfg.process.layer_height = 0.6
+    cfg.process.surface_grid = 2.0
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'slab.stl')
+        _write_stl(p, slab_on_dome())
+        text, result, tune = pipeline.run(p, cfg)
+    pts = _gcode_points(text)
+    assert pts, "keine Bahnen erzeugt"
+    # Die unterste Schicht muss in Z variieren (folgt der Kuppel) -> non-planar
+    zmin_layer = min(p[2] for p in pts)
+    bottom_pts = [p for p in pts if p[2] < zmin_layer + 4.0]
+    z_spread = max(p[2] for p in bottom_pts) - min(p[2] for p in bottom_pts)
+    assert z_spread > 1.0, "Bodenschichten sollten der Kuppel folgen (non-planar)"
+    # Aussenform erhalten: XY-Ausdehnung ~ 40 mm (zentriert auf Bett 300)
+    xs = [p[0] for p in pts]
+    assert (max(xs) - min(xs)) > 35.0
+
+
+def test_tuning_flow_limit():
+    t = tuning.autotune(
+        {'nozzle_d': 1.0, 'max_flow_mm3s': 15.0, 'max_speed_mms': 40.0,
+         'bed_x': 300, 'bed_y': 300},
+        {'line_width': 1.0, 'layer_height': 0.6})
+    # cross 0.6 mm^2 -> flow speed 25 mm/s < bend 40 -> print speed 25
+    assert abs(t['cross_section_mm2'] - 0.6) < 1e-6
+    assert abs(t['print_speed_mms'] - 25.0) < 0.01
+    assert t['travel_speed_mms'] == 40.0
+    assert t['effective_flow_mm3s'] <= 15.0 + 1e-6
+
+
+def test_e_modes():
+    cfg = AppConfig()
+    cfg.process.field = 'planar'
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'cube.stl')
+        _write_stl(p, cube(size=16.0))
+        for mode in ('volumetric', 'filament', 'pressure'):
+            cfg.material.e_mode = mode
+            text, _, _ = pipeline.run(p, cfg)
+            if mode == 'pressure':
+                assert cfg.material.pressure_on in text
+                assert ' E' not in text  # keine E-Werte
+            else:
+                assert ' E' in text
+
+
+def test_config_roundtrip():
+    cfg = AppConfig()
+    cfg.process.field = 'bottom'
+    cfg.printer.max_flow_mm3s = 15.0
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'prof.json')
+        cfg.save(p)
+        cfg2 = AppConfig.load(p)
+    assert cfg2.process.field == 'bottom'
+    assert cfg2.printer.max_flow_mm3s == 15.0
+    assert cfg2.printer.bed_x == 300.0
+
+
+def test_bed_check():
+    cfg = AppConfig()
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'big.stl')
+        _write_stl(p, cube(size=400.0))
+        tris = pipeline.prepare_mesh(p, cfg)
+        errs = pipeline.check_fits_bed(tris, cfg)
+    assert any('hoch' in e or 'breit' in e for e in errs)
+
+
+if __name__ == '__main__':
+    fns = [v for k, v in sorted(globals().items()) if k.startswith('test_')]
+    failed = 0
+    for fn in fns:
+        try:
+            fn()
+            print('PASS', fn.__name__)
+        except Exception as e:
+            failed += 1
+            print('FAIL', fn.__name__, '->', repr(e))
+    print('\n%d/%d Tests bestanden' % (len(fns) - failed, len(fns)))
+    sys.exit(1 if failed else 0)

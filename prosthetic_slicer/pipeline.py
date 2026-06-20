@@ -1,0 +1,54 @@
+"""Verbindet Geometrie -> Slicing -> G-code unter Beruecksichtigung von Tuning.
+
+Diese Schicht wird von CLI und GUI gemeinsam genutzt, damit beide identisch
+arbeiten (STL rein, non-planarer G-code raus)."""
+
+from . import geometry, slicer, gcode, tuning
+
+
+def prepare_mesh(stl_path, cfg):
+    tris = geometry.read_stl(stl_path)
+    if cfg.process.center_on_bed:
+        tris = geometry.center_on_bed(tris, cfg.printer.bed_x, cfg.printer.bed_y)
+    return tris
+
+
+def compute_tuning(cfg):
+    return tuning.autotune(
+        {'nozzle_d': cfg.printer.nozzle_d,
+         'max_flow_mm3s': cfg.printer.max_flow_mm3s,
+         'max_speed_mms': cfg.printer.max_speed_mms,
+         'bed_x': cfg.printer.bed_x, 'bed_y': cfg.printer.bed_y},
+        {'line_width': cfg.process.line_width,
+         'layer_height': cfg.process.layer_height})
+
+
+def slice_mesh(tris, cfg, progress=None):
+    p = cfg.process
+    ref = p.reference_stl or None
+    return slicer.slice_model(
+        tris, p.layer_height, p.line_width, p.perimeters, p.infill_spacing,
+        field=p.field, amp=p.amp, wavelength=p.wavelength, reference_stl=ref,
+        surface_grid=p.surface_grid, smooth=p.smooth, progress=progress)
+
+
+def run(stl_path, cfg, progress=None):
+    """Voller Lauf -> (gcode_text, slice_result, tune)."""
+    tris = prepare_mesh(stl_path, cfg)
+    tune = compute_tuning(cfg)
+    result = slice_mesh(tris, cfg, progress=progress)
+    rt = cfg.runtime(tune['print_speed_mms'], tune['travel_speed_mms'])
+    text = gcode.write_gcode(result, rt)
+    return text, result, tune
+
+
+def check_fits_bed(tris, cfg):
+    x0, y0, z0, x1, y1, z1 = geometry.bounds(tris)
+    errs = []
+    if (x1 - x0) > cfg.printer.bed_x:
+        errs.append('Modell zu breit (X %.1f > %.1f mm)' % (x1 - x0, cfg.printer.bed_x))
+    if (y1 - y0) > cfg.printer.bed_y:
+        errs.append('Modell zu tief (Y %.1f > %.1f mm)' % (y1 - y0, cfg.printer.bed_y))
+    if (z1 - z0) > cfg.printer.bed_z:
+        errs.append('Modell zu hoch (Z %.1f > %.1f mm)' % (z1 - z0, cfg.printer.bed_z))
+    return errs

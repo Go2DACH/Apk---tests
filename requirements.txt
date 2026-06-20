@@ -1,0 +1,6 @@
+# GUI-Abhaengigkeiten. Der Slicer-Kern (prosthetic_slicer ohne gui/) braucht
+# nichts davon und laeuft mit reiner Standardbibliothek.
+numpy>=1.24
+PySide6>=6.6
+pyqtgraph>=0.13
+PyOpenGL>=3.1
