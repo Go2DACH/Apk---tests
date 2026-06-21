@@ -364,16 +364,18 @@
   function cloudPublish(cases) {
     if (!IR.cloud.enabled()) { state.cloudMsg = 'Bitte zuerst Owner/Repo/Token speichern.'; state.cloudErr = true; state.view = 'cloud'; return render(); }
     if (!cases || !cases.length) { toast('Keine Faelle'); return; }
-    var files = cloudHostFiles(), done = 0, errs = 0, total = cases.length;
+    var files = cloudHostFiles(), done = 0, errs = 0, total = cases.length, lastErr = '';
     state.cloudMsg = 'Veroeffentliche ' + total + ' Fall/Faelle …'; state.cloudErr = false; render();
     cases.reduce(function (chain, cse) {
       return chain.then(function () {
-        return IR.cloud.publish(cse, files).then(function () { done++; }, function () { errs++; });
+        return IR.cloud.publish(cse, files).then(function () { done++; }, function (e) { errs++; lastErr = (e && e.message) || String(e); });
       });
     }, Promise.resolve()).then(function () {
-      state.cloudMsg = done + ' veroeffentlicht' + (errs ? ', ' + errs + ' Fehler (Token/Repo pruefen)' : '') + '.';
+      var hint = '';
+      if (errs) { hint = ' – ' + lastErr; if (/40[13]/.test(lastErr)) hint += ' (PAT mit Contents:write fuer dieses Repo?)'; if (/404/.test(lastErr)) hint += ' (Owner/Repo/Branch pruefen)'; }
+      state.cloudMsg = done + ' veroeffentlicht' + (errs ? (', ' + errs + ' Fehler' + hint) : '') + '.';
       state.cloudErr = errs > 0;
-      toast(state.cloudMsg);
+      toast(errs ? ('Cloud-Fehler' + hint) : (done + ' veroeffentlicht'));
       cloudRefresh();
     });
   }

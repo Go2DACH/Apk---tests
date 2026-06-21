@@ -78,7 +78,10 @@ a{color:var(--acc)}pre{white-space:pre-wrap;background:#06182a;border:1px solid 
 
     h += '<section class="card"><div class="row"><h2>Aktive Incidents (' + inc.length + ')</h2>' +
       '<small>' + (idx.updated ? 'Stand: ' + esc(idx.updated) : '') + '</small></div>';
-    if (state.err) h += '<p class="warn">Keine Cloud-Daten gefunden (' + esc(state.err) + '). Sobald die App einen Vorfall veroeffentlicht, erscheint er hier.</p>';
+    if (state.err) {
+      h += '<p class="warn">Keine Cloud-Daten gefunden (' + esc(state.err) + '). Sobald die App einen Vorfall veroeffentlicht, erscheint er hier.</p>';
+      if (location.protocol === 'file:') h += '<p class="warn">Hinweis: Als lokale Datei (file://) kann der Browser index.json nicht laden. Oeffne das Dashboard ueber GitHub Pages (https) oder den Boot-Stick (http, /app/dashboard.html).</p>';
+    }
     if (!inc.length && !state.err) h += '<p class="muted">Noch keine veroeffentlichten Vorfaelle.</p>';
     inc.forEach(function (e) {
       var open = !!state.open[e.id];

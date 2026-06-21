@@ -108,9 +108,12 @@
         .then(function (rs) { return rs.filter(Boolean); });
     },
     // Gefundenen Host uebernehmen, falls noch nicht vorhanden (Token leer -> nachtragen)
+    // Wirft nicht, wenn das Maximum erreicht ist (gibt dann null zurueck).
     adopt: function (base, info) {
+      base = normBase(base);
       var exists = load().filter(function (h) { return h.base === base; })[0];
       if (exists) return exists;
+      if (load().length >= MAX) return null;
       return this.add({ label: (info && (info.name || info.host)) || base, base: base, token: '' });
     },
     intakeUrl: function (h, name) {

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — Multi-Host, Cloud & Auslieferung
+
+- **No-Root-Forensik & Boot-Stick-Fernsteuerung** (`desktop/control-server.py`):
+  headless vom Smartphone steuern, ohne Tastatur am Ziel; `mobile/hid-keyboard.md`.
+- **Mehrere Forensik-Hosts** (bis 10, `js/hosts.js`): Auto-Discovery (USB/Netz),
+  One-Click Discover/Wireshark/Image/Triage/Manifest, Datei-Download.
+- **Befunde automatisch ins Playbook**: ingest.json der Endpoints → „⤵ Befunde in
+  Fall"; Panel „📥 Befunde aus Daten" in der Forensik-Phase (kein Auto-Confirm).
+- **Auto-Kopplung** Handy↔Stick ohne DHCP (`desktop/netup.sh`, `ir-net.service`).
+- **Windows-Sammler** (`windows/IR-Collect.cmd`/`ir-collect.ps1`): read-only Triage
+  → SHA256 → Upload an den Host (`/api/intake`).
+- **Cloud = Git** (`js/cloud.js`): Vorfall-Snapshots via GitHub-Contents-API nach
+  `cloud/incidents/`; Pfad vorbelegt + änderbar; klare 403/404-Hinweise.
+- **Pages-Dashboard** (`dashboard.html`): liest die Cloud statisch; PIN 1374.
+- **Pages-Deploy** auf `gh-pages`-Branch umgestellt (umgeht Environment-Sperre).
+- **APK**: Cleartext + MixedContent für lokale Forensik-Hosts erlaubt.
+- **Doku**: `npm run guide` erzeugt `dist/IR-Pilot_Anleitung.pdf` (mit Screenshots)
+  und `dist/IR-Pilot_Testplan.pdf` (manueller Testplan + „wo hakt es").
+- **Tests**: 1635 Logik + 33 UI + 7 Dashboard + Control-Server-Smoke.
+
 ## v1.0.0 — IR-Pilot (Incident-Response-Tool)
 
 Erstes Release. Geführtes, playbook-basiertes Incident-Response-Tool für den

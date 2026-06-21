@@ -6,6 +6,7 @@
     "test": "node tests/run.js && node tests/ui.js && node tests/dashboard.js && bash tests/control-server.sh",
     "tools": "node tools/export-tools.js",
     "cards": "node build/make-cards.js",
+    "guide": "node build/make-guide.js",
     "release": "bash build/make-release.sh"
   },
   "devDependencies": {

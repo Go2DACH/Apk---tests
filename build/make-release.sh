@@ -13,7 +13,8 @@ echo "[*] Release $VERSION"
 
 # 1) Tests muessen gruen sein
 echo "[*] Tests..."
-node tests/run.js >/dev/null && node tests/ui.js >/dev/null && echo "    OK"
+node tests/run.js >/dev/null && node tests/ui.js >/dev/null && node tests/dashboard.js >/dev/null \
+  && bash tests/control-server.sh >/dev/null && echo "    OK"
 
 # 2) Aktuelle Artefakte erzeugen (Tools materialisieren, Einsatzkarten-HTML)
 node tools/export-tools.js >/dev/null
@@ -21,13 +22,14 @@ node build/make-cards.js >/dev/null
 
 # 3) Staging zusammenstellen
 rm -rf "$STAGE"; mkdir -p "$STAGE"
-for item in index.html sw.js manifest.webmanifest css js data tools mobile desktop \
-            build assets README.md CHANGELOG.md package.json; do
+for item in index.html dashboard.html sw.js manifest.webmanifest css js data tools mobile desktop \
+            windows cloud build assets README.md CHANGELOG.md package.json; do
   [ -e "$ROOT/$item" ] && cp -a "$ROOT/$item" "$STAGE/"
 done
 # Doku/PDFs beilegen (sofern vorhanden)
 mkdir -p "$STAGE/doku"
-for f in dist/IR-Pilot_Einsatzkarten.pdf dist/IR-Pilot_Walkthrough.pdf \
+for f in dist/IR-Pilot_Anleitung.pdf dist/IR-Pilot_Testplan.pdf \
+         dist/IR-Pilot_Einsatzkarten.pdf dist/IR-Pilot_Walkthrough.pdf \
          dist/einsatzkarten.html dist/playthrough-report.md; do
   [ -e "$ROOT/$f" ] && cp -a "$ROOT/$f" "$STAGE/doku/"
 done
