@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "qa-roundtrip",
+  "title": "QA-Roundtrip (Test)",
+  "org": "IR-Pilot QA",
+  "responder": "",
+  "status": "confirmed",
+  "severity": "kritisch",
+  "classification": "TLP:AMBER",
+  "phase": "Erstbewertung – Vorfall oder Fehlalarm?",
+  "progress": 46,
+  "done": 13,
+  "total": 28,
+  "iocs": 1,
+  "evidence": 1,
+  "createdAt": "2026-06-21T15:25:25.934Z",
+  "updated": "2026-06-21T15:25:25.935Z",
+  "files": [
+    { "path": "images/hmi-01.E01", "size": 256000000000, "host": "Stick-1", "url": "#" },
+    { "path": "intake/win-triage.zip", "size": 4700000, "host": "Kasse-PC", "url": "#" }
+  ],
+  "report": "# Incident-Report – QA-Roundtrip (Test)\n\n- **Organisation:** IR-Pilot QA\n- **Einstufung:** TLP:AMBER\n- **Playbook:** Ransomware\n- **Status:** confirmed\n\n## Asset-Inventar & Schwachstellen\n- hmi-01 10.20.0.21 · Windows 10 · kritisch\n- CVE-2024-1234 (CVSS 9.8) [kritisch] @ hmi-01\n\n## IOCs\n- ip: 203.0.113.66 – C2\n"
+}
