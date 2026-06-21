@@ -2,11 +2,15 @@ package de.irpilot
 
 import android.net.http.SslError
 import android.os.Bundle
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.EditText
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 
 /**
@@ -46,7 +50,31 @@ class MainActivity : AppCompatActivity() {
                 if (isPrivateHost(host)) handler?.proceed() else handler?.cancel()
             }
         }
-        web.webChromeClient = WebChromeClient()
+        // JS-Dialoge (confirm beim Loeschen, prompt fuer Chain-of-Custody/Import)
+        // zuverlaessig als native Dialoge anzeigen – die Basis-Implementierung tut
+        // das nicht garantiert.
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onJsAlert(v: WebView?, url: String?, msg: String?, r: JsResult): Boolean {
+                AlertDialog.Builder(this@MainActivity).setMessage(msg).setCancelable(false)
+                    .setPositiveButton("OK") { _, _ -> r.confirm() }.show()
+                return true
+            }
+            override fun onJsConfirm(v: WebView?, url: String?, msg: String?, r: JsResult): Boolean {
+                AlertDialog.Builder(this@MainActivity).setMessage(msg)
+                    .setPositiveButton("OK") { _, _ -> r.confirm() }
+                    .setNegativeButton("Abbrechen") { _, _ -> r.cancel() }
+                    .setOnCancelListener { r.cancel() }.show()
+                return true
+            }
+            override fun onJsPrompt(v: WebView?, url: String?, msg: String?, def: String?, r: JsPromptResult): Boolean {
+                val input = EditText(this@MainActivity); input.setText(def ?: "")
+                AlertDialog.Builder(this@MainActivity).setMessage(msg).setView(input)
+                    .setPositiveButton("OK") { _, _ -> r.confirm(input.text.toString()) }
+                    .setNegativeButton("Abbrechen") { _, _ -> r.cancel() }
+                    .setOnCancelListener { r.cancel() }.show()
+                return true
+            }
+        }
         web.addJavascriptInterface(IRBridge(this) { web }, "AndroidIR")
 
         // Offline-first: gebuendelte App. Online-Update via Bridge.reloadData().
