@@ -1,5 +1,11 @@
 name: Deploy GitHub Pages
 
+# Veroeffentlicht die Web-App + dashboard.html + cloud/ in den Branch `gh-pages`.
+# Dieser Weg ist unabhaengig von der `github-pages`-Environment-Regel und
+# funktioniert auch, wenn der Arbeits-Branch NICHT der Default-Branch ist.
+# Danach in den Repo-Einstellungen: Pages -> Source = "Deploy from a branch"
+# -> Branch: gh-pages / (root).
+
 on:
   push:
     branches: ["claude/fresh-start-v9zow4"]
@@ -18,29 +24,34 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: "pages"
+  group: "pages-gh"
   cancel-in-progress: true
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Stage site
         run: |
-          mkdir -p _site
-          cp -r index.html dashboard.html sw.js manifest.webmanifest css js data assets tools mobile desktop windows cloud README.md _site/
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          rm -rf _site && mkdir -p _site
+          cp -r index.html dashboard.html sw.js manifest.webmanifest \
+                css js data assets tools mobile desktop windows cloud README.md _site/
+          touch _site/.nojekyll   # GitHub Pages: Jekyll aus (Pfade mit _, .json etc.)
+
+      - name: Publish to gh-pages branch
+        run: |
+          cd _site
+          git init -q
+          git checkout -q -b gh-pages
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Deploy ${GITHUB_SHA} from ${GITHUB_REF_NAME}"
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
