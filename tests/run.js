@@ -3,6 +3,7 @@
 require('../js/core.js');
 require('../js/native.js');
 require('../js/hosts.js');
+require('../js/sources.js');
 require('../js/cloud.js');
 require('../js/assistant.js');
 require('../data/catalog.js');
@@ -325,7 +326,53 @@ group('KI-Assistent (Request)', function () {
   ok(body.messages.length === 1 && body.messages[0].role === 'user', 'Nachricht im Body');
 });
 
+group('IDS-Datenquelle & Ingest (Assets/Vulns/Alerts)', function () {
+  var c = IR.Case.create({ playbookId: 'ransomware', title: 'IDS-Test' });
+  var bundle = {
+    source: 'mein-ids',
+    assets: [{ name: 'KASSE-01', ip: '10.20.0.21', type: 'POS', os: 'Windows 10', criticality: 'hoch' },
+             { name: 'KASSE-01', ip: '10.20.0.21' }],  // Dublette -> 1
+    vulns: [{ asset: 'KASSE-01', cve: 'CVE-2024-12345', cvss: 9.8, severity: 'kritisch', title: 'RCE' }],
+    alerts: [{ ts: '2026-06-21T10:00:00Z', signature: 'C2 Beacon', severity: 'high', src_ip: '10.20.0.21', dest_ip: '203.0.113.66' }]
+  };
+  var r = IR.ingest.merge(c, bundle);
+  ok(r.assets === 1 && c.assets.length === 1, 'Asset uebernommen + dedupliziert');
+  ok(r.vulns === 1 && c.vulns[0].cve === 'CVE-2024-12345', 'Schwachstelle uebernommen');
+  ok(r.iocs >= 2 && c.iocs.some(function (x) { return x.value === '203.0.113.66'; }), 'IDS-Alert-IPs als IOC');
+  ok(c.timeline.some(function (t) { return t.kind === 'ids' && /C2 Beacon/.test(t.text); }), 'Alert in Zeitachse');
+  ok(c.timeline.some(function (t) { return /Kritische Schwachstelle/.test(t.text); }), 'kritische Vuln protokolliert');
+  var md = IR.report.markdown(c);
+  ok(/Asset-Inventar & Schwachstellen/.test(md) && /KASSE-01/.test(md) && /CVE-2024-12345/.test(md), 'Bericht listet Assets/Vulns');
+
+  var S = IR.sources;
+  S.list().slice().forEach(function (s) { S.remove(s.id); });
+  var src = S.add({ label: 'Mein-IDS', url: 'ids.local/api/export', token: 'tok' });
+  ok(src.url === 'http://ids.local/api/export', 'URL normalisiert');
+  var req = S.buildRequest(src);
+  ok(req.opts.headers.Authorization === 'Bearer tok', 'Token als Bearer-Header');
+  ok(S.toBundle([{ name: 'A', ip: '1.2.3.4' }], 'x').assets.length === 1, 'reines Array -> Asset-Liste');
+  ok(S.toBundle({ vulnerabilities: [{ cve: 'X' }] }, 'x').vulns.length === 1, 'Alias vulnerabilities->vulns');
+  S.list().slice().forEach(function (s) { S.remove(s.id); });
+});
+
 function finish() { console.log('\n' + passes + ' ok, ' + fails + ' fail'); process.exit(fails ? 1 : 0); }
+
+// Async: Datenquelle abrufen (pullInto) gegen simuliertes IDS
+function sourcesAsync() {
+  var S = IR.sources;
+  globalThis.fetch = function (url, opts) {
+    var auth = opts && opts.headers && opts.headers.Authorization;
+    return Promise.resolve({ ok: !!auth, status: auth ? 200 : 401,
+      json: function () { return Promise.resolve({ source: 'ids', assets: [{ name: 'SRV1', ip: '10.0.0.9' }], vulns: [{ cve: 'CVE-1', severity: 'hoch' }] }); } });
+  };
+  var c = IR.Case.create({ playbookId: 'ransomware', title: 'Pull-Test' });
+  var src = S.add({ label: 'IDS', url: 'http://ids/api', token: 'tok' });
+  return S.pullInto(src, c).then(function (r) {
+    ok(r.assets === 1 && r.vulns === 1 && c.assets[0].name === 'SRV1', 'pullInto holt + merged Assets/Vulns');
+    S.list().slice().forEach(function (s) { S.remove(s.id); });
+    delete globalThis.fetch;
+  });
+}
 
 // Async: Assistent ask() gegen simulierte Anthropic-API
 function assistantAsync() {
@@ -441,5 +488,6 @@ IR.cloud.publish(IR.Case.create({ playbookId: 'generic', title: 'Publish-Test', 
     return hostFindingsAsync();
   })
   .then(function () { return assistantAsync(); })
+  .then(function () { return sourcesAsync(); })
   .then(function () { finish(); })
   .catch(function (e) { ok(false, 'Cloud/Host Async Exception: ' + (e && e.stack || e)); delete globalThis.fetch; finish(); });

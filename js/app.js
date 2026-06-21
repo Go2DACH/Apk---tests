@@ -47,6 +47,7 @@
       : state.view === 'hosts' ? viewHosts()
       : state.view === 'cloud' ? viewCloud()
       : state.view === 'assistant' ? viewAssistant()
+      : state.view === 'sources' ? viewSources()
       : state.view === 'tools' ? viewTools() : viewHome());
     var v = state.view;
     if (v === 'home') root.innerHTML = viewHome();
@@ -56,6 +57,7 @@
     else if (v === 'hosts') root.innerHTML = viewHosts();
     else if (v === 'cloud') root.innerHTML = viewCloud();
     else if (v === 'assistant') root.innerHTML = viewAssistant();
+    else if (v === 'sources') root.innerHTML = viewSources();
     else if (v === 'pb') root.innerHTML = viewPlaybook();
     else if (v === 'evidence') root.innerHTML = viewEvidence();
     else if (v === 'ioc') root.innerHTML = viewIoc();
@@ -73,6 +75,7 @@
       '<button class="mini" data-act="new" data-id="generic">Generisches Playbook starten</button>' +
       '<button class="mini" data-act="goto-native">📡 Geraete &amp; Forensik (nativ)</button>' +
       '<button class="mini" data-act="goto-hosts">🖧 Forensik-Hosts (bis 10)</button>' +
+      '<button class="mini" data-act="goto-sources">🗄️ Datenquellen (IDS/Asset)</button>' +
       '<button class="mini" data-act="goto-dashboard">📊 Live-Dashboard</button>' +
       '<button class="mini" data-act="goto-cloud">☁️ Cloud &amp; Veroeffentlichen</button>' +
       '<button class="mini" data-act="goto-assistant">🤖 Assistent (KI-Fragen)</button></section>';
@@ -426,6 +429,56 @@
     return h;
   }
 
+  /* --------------------------------------------- Datenquellen (IDS/Asset) */
+  function srcPull(id) {
+    if (!c) { toast('Erst einen Fall öffnen'); return; }
+    var s = IR.sources.get(id); if (!s) return;
+    state.srcMsg = '▶ Abruf: ' + s.label + ' …'; state.srcErr = false; render();
+    IR.sources.pullInto(s, c).then(function (r) {
+      save();
+      state.srcMsg = 'Übernommen: ' + r.assets + ' Assets, ' + r.vulns + ' Schwachstellen, ' + r.iocs + ' IOCs, ' + r.timeline + ' Ereignisse.';
+      state.srcErr = false; toast('Daten übernommen'); render();
+    }).catch(function (e) {
+      state.srcMsg = 'Fehler: ' + (e && e.message || e) + ' – URL/Token/CORS prüfen (in der APK: lokales http erlaubt).';
+      state.srcErr = true; render();
+    });
+  }
+  function viewSources() {
+    var list = IR.sources.list();
+    var h = '<section class="card"><div class="row"><h2>🗄️ Datenquellen (IDS / Asset / Schwachstellen)</h2>' +
+      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      '<p class="muted">Externe Daten-Lieferanten (z.B. dein IDS-Tool mit Asset-Inventar &amp; Schwachstellen) per JSON-URL anbinden. ' +
+      'Die App ruft ab und übernimmt Assets, Schwachstellen, IOCs, Hosts und IDS-Alerts in den aktiven Fall. ' +
+      'Erwartetes Format: <code>docs/integration-ids.md</code>.</p>';
+    if (list.length < IR.sources.MAX) {
+      h += '<div class="hostadd"><div class="row"><input id="srcLabel" placeholder="Name (z.B. Mein-IDS)"></div>' +
+        '<div class="row"><input id="srcUrl" placeholder="JSON-URL (z.B. http://ids.local/api/export)"></div>' +
+        '<div class="row"><input id="srcToken" type="password" placeholder="Token (optional, Bearer)"></div>' +
+        '<button class="mini" data-act="src-add">+ Datenquelle hinzufügen</button></div>';
+    }
+    if (state.srcMsg) h += '<small class="' + (state.srcErr ? 'warn' : 'muted') + '">' + U.esc(state.srcMsg) + '</small>';
+    h += (c ? '' : '<small class="warn">Zum Übernehmen zuerst einen Fall öffnen.</small>') + '</section>';
+
+    list.forEach(function (s) {
+      h += '<section class="card"><div class="row"><strong>' + U.esc(s.label) + '</strong><span class="badge">' + U.esc(s.kind) + '</span></div>' +
+        '<small class="muted"><code>' + U.esc(s.url) + '</code></small>' +
+        '<div class="row">' + (c ? '<button class="mini" data-act="src-pull" data-id="' + s.id + '">⤵ Abrufen → in Fall</button>' : '') +
+        '<button class="icon" data-act="src-del" data-id="' + s.id + '" title="entfernen">✕</button></div></section>';
+    });
+
+    if (c && ((c.assets && c.assets.length) || (c.vulns && c.vulns.length))) {
+      h += '<section class="card"><h3>Im Fall: ' + (c.assets || []).length + ' Assets · ' + (c.vulns || []).length + ' Schwachstellen</h3>';
+      (c.assets || []).slice(0, 8).forEach(function (a) {
+        h += '<div class="frow">· <strong>' + U.esc(a.name || a.ip) + '</strong> ' + U.esc(a.ip || '') + (a.criticality ? ' <span class="badge">' + U.esc(a.criticality) + '</span>' : '') + '</div>';
+      });
+      (c.vulns || []).slice(0, 8).forEach(function (v) {
+        h += '<div class="frow">⚠ ' + U.esc(v.cve || v.title) + (v.cvss !== '' && v.cvss != null ? ' (CVSS ' + U.esc(String(v.cvss)) + ')' : '') + (v.asset ? ' @ ' + U.esc(v.asset) : '') + '</div>';
+      });
+      h += '<small class="muted">Vollständig im Bericht (auch PDF).</small></section>';
+    }
+    return h;
+  }
+
   /* ------------------------------------------------------- KI-Assistent */
   function viewAssistant() {
     var A = IR.assistant, cfg = A.config(), on = A.enabled();
@@ -718,6 +771,15 @@
       cloudPublish([c]); return;
     }
     if (act === 'cloud-pub-all') { cloudPublish(IR.store.list()); return; }
+    // ---- Datenquellen (IDS/Asset) ----
+    if (act === 'goto-sources') { state.view = 'sources'; return render(); }
+    if (act === 'src-add') {
+      try { IR.sources.add({ label: ($('#srcLabel') || {}).value, url: ($('#srcUrl') || {}).value, token: ($('#srcToken') || {}).value }); toast('Datenquelle hinzugefügt'); render(); }
+      catch (err) { toast(err.message || 'Fehler'); }
+      return;
+    }
+    if (act === 'src-del') { if (confirm('Datenquelle entfernen?')) { IR.sources.remove(id); render(); } return; }
+    if (act === 'src-pull') { srcPull(id); return; }
     // ---- KI-Assistent ----
     if (act === 'goto-assistant') { state.view = 'assistant'; return render(); }
     if (act === 'asst-save') {

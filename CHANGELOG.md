@@ -2,6 +2,12 @@
 
 ## Unreleased — Multi-Host, Cloud & Auslieferung
 
+- **Datenquellen-Anbindung (IDS/Asset/Schwachstellen)** (`js/sources.js`, Ansicht
+  „🗄️ Datenquellen"): externes Tool per JSON-URL (+ Bearer-Token) anzapfen; die
+  App übernimmt **Assets, Schwachstellen, IDS-Alerts, IOCs, Hosts** in den Fall.
+  Ingest erweitert (`assets`/`vulns`/`alerts`), Bericht/PDF zeigt Asset-Inventar
+  & Schwachstellen. Vertrag/Schema: `docs/integration-ids.md`.
+
 - **Fotos & Screenshots** (`js/core.js` addPhoto/removePhoto): Geräte-/Anlagenfotos
   oder Host-Screenshots in der Beweise-Ansicht erfassen (Kamera oder Galerie),
   lokal verkleinert gespeichert, im PDF-Bericht eingebunden.

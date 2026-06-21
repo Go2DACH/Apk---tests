@@ -91,6 +91,8 @@
         comms: [],            // {ts, audience, channel, status, content}
         tasks: [],            // {ts, text, owner, done}
         photos: [],           // {id, ts, name, note, host, dataUrl}
+        assets: [],           // Asset-Inventar (z.B. aus IDS): {name, ip, mac, type, os, location, owner, criticality}
+        vulns: [],            // Schwachstellen (z.B. aus IDS): {asset, cve, cvss, severity, title, status}
         notes: []             // freie Notizen
       };
     },
@@ -228,8 +230,9 @@
     schema: 1,
     merge: function (c, bundle) {
       bundle = bundle || {};
-      var added = { iocs: 0, hosts: 0, notes: 0, timeline: 0, evidence: 0 };
+      var added = { iocs: 0, hosts: 0, assets: 0, vulns: 0, notes: 0, timeline: 0, evidence: 0 };
       var seen = {};
+      if (!c.assets) c.assets = []; if (!c.vulns) c.vulns = [];
       c.iocs.forEach(function (x) { seen[x.type + '|' + x.value] = 1; });
       (bundle.iocs || []).forEach(function (x) {
         if (!x || !x.value) return;
@@ -243,6 +246,31 @@
         var v = h.ip || h.name; if (!v) return;
         IR.Case.addIoc(c, 'host', v, [h.name, h.ports, h.note].filter(Boolean).join(' · '));
         added.hosts++;
+      });
+      // Asset-Inventar (z.B. aus dem IDS): nach IP/Name deduplizieren
+      var aseen = {}; c.assets.forEach(function (a) { aseen[(a.ip || a.name || '').toLowerCase()] = 1; });
+      (bundle.assets || []).forEach(function (a) {
+        if (!a) return; var key = (a.ip || a.name || a.host || '').toLowerCase(); if (!key || aseen[key]) return; aseen[key] = 1;
+        c.assets.push({ name: a.name || a.host || a.ip, ip: a.ip || '', mac: a.mac || '', type: a.type || '',
+          os: a.os || '', location: a.location || '', owner: a.owner || '', criticality: a.criticality || '', source: bundle.source || 'ids' });
+        added.assets++;
+      });
+      // Schwachstellen (z.B. aus dem Schwachstellen-Management)
+      (bundle.vulns || []).forEach(function (v) {
+        if (!v || !(v.cve || v.title)) return;
+        c.vulns.push({ asset: v.asset || v.host || v.ip || '', cve: v.cve || '', cvss: v.cvss != null ? v.cvss : '',
+          severity: v.severity || '', title: v.title || v.cve || '', status: v.status || 'offen', source: bundle.source || 'ids' });
+        added.vulns++;
+        if (/krit|high|hoch|9\.|10/.test(String(v.severity || v.cvss))) IR.Case.log(c, 'ingest', 'Kritische Schwachstelle: ' + (v.cve || v.title) + (v.asset ? ' @ ' + v.asset : ''));
+      });
+      // IDS-Alerts -> IOCs + Zeitachse
+      (bundle.alerts || []).forEach(function (al) {
+        if (!al) return;
+        var sig = al.signature || al.title || al.msg || 'IDS-Alert';
+        if (al.src_ip) { var k = 'ip|' + al.src_ip; if (!seen[k]) { seen[k] = 1; IR.Case.addIoc(c, 'ip', al.src_ip, 'IDS: ' + sig); added.iocs++; } }
+        if (al.dest_ip) { var k2 = 'ip|' + al.dest_ip; if (!seen[k2]) { seen[k2] = 1; IR.Case.addIoc(c, 'ip', al.dest_ip, 'IDS: ' + sig); added.iocs++; } }
+        c.timeline.push({ ts: al.ts || U.nowISO(), kind: 'ids', text: sig + (al.severity ? ' [' + al.severity + ']' : '') + (al.src_ip ? ' ' + al.src_ip + '→' + (al.dest_ip || '?') : ''), by: bundle.source || 'IDS' });
+        added.timeline++;
       });
       (bundle.notes || []).forEach(function (n) { if (n) { IR.Case.log(c, 'ingest', String(n)); added.notes++; } });
       (bundle.timeline || []).forEach(function (t) {

@@ -12,7 +12,7 @@ STAGE="$ROOT/dist/_kit"; OUT="$ROOT/dist/ir-pilot-kit.zip"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 
 # 1) App (damit der Stick die volle App offline ausliefern kann)
-for d in index.html dashboard.html sw.js manifest.webmanifest css js data assets cloud README.md; do
+for d in index.html dashboard.html sw.js manifest.webmanifest css js data assets cloud docs README.md; do
   [ -e "$ROOT/$d" ] && cp -a "$ROOT/$d" "$STAGE/"
 done
 # 2) Host-/Asset-Komponenten + Provisionierung

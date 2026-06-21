@@ -153,6 +153,16 @@ function run() {
     ok(IR.assistant.enabled() === true, 'Assistent-Key gespeichert');
     IR.assistant.setConfig({ apiKey: '' });
 
+    // ---- Datenquellen (IDS/Asset) ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="goto-sources"]').click();
+    ok(/Datenquellen/.test(d.querySelector('#app').innerHTML) && !!d.querySelector('#srcUrl'), 'Datenquellen-Ansicht mit URL-Feld');
+    d.querySelector('#srcLabel').value = 'Mein-IDS';
+    d.querySelector('#srcUrl').value = 'http://ids.local/api/export';
+    d.querySelector('[data-act="src-add"]').click();
+    ok(IR.sources.list().length === 1 && /ids.local/.test(d.querySelector('#app').innerHTML), 'Datenquelle hinzugefuegt');
+    IR.sources.list().slice().forEach(function (s) { IR.sources.remove(s.id); });
+
     console.log('\nUI: ' + passes + ' ok, ' + fails + ' fail');
     process.exit(fails ? 1 : 0);
   } catch (e) {

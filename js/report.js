@@ -53,6 +53,27 @@
       if (!c.iocs.length) L.push('_keine IOCs erfasst_');
       c.iocs.forEach(function (x) { L.push('- **' + x.type + '**: `' + x.value + '`' + (x.note ? ' – ' + x.note : '')); });
 
+      // Asset-Inventar & Schwachstellen (z.B. aus dem IDS)
+      if ((c.assets && c.assets.length) || (c.vulns && c.vulns.length)) {
+        L.push('\n## 4a. Asset-Inventar & Schwachstellen');
+        if (c.assets && c.assets.length) {
+          L.push('\n**Assets (' + c.assets.length + '):**');
+          c.assets.forEach(function (a) {
+            L.push('- ' + (a.name || a.ip) + (a.ip ? ' `' + a.ip + '`' : '') + (a.type ? ' · ' + a.type : '') +
+              (a.os ? ' · ' + a.os : '') + (a.criticality ? ' · Kritikalität: ' + a.criticality : '') +
+              (a.location ? ' · ' + a.location : '') + (a.owner ? ' · ' + a.owner : ''));
+          });
+        }
+        if (c.vulns && c.vulns.length) {
+          L.push('\n**Schwachstellen (' + c.vulns.length + '):**');
+          c.vulns.forEach(function (v) {
+            L.push('- ' + (v.cve || v.title) + (v.cvss !== '' && v.cvss != null ? ' (CVSS ' + v.cvss + ')' : '') +
+              (v.severity ? ' [' + v.severity + ']' : '') + (v.asset ? ' @ ' + v.asset : '') +
+              (v.title && v.cve ? ' – ' + v.title : '') + ' · Status: ' + (v.status || 'offen'));
+          });
+        }
+      }
+
       // Kommunikation
       L.push('\n## 5. Kommunikation & Meldungen');
       if (!c.comms.length) L.push('_keine Kommunikation protokolliert_');
