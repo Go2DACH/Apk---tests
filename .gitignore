@@ -13,3 +13,4 @@ android/local.properties
 .gradle/
 __pycache__/
 *.pyc
+_deliver/
