@@ -48,6 +48,7 @@
       : state.view === 'cloud' ? viewCloud()
       : state.view === 'assistant' ? viewAssistant()
       : state.view === 'sources' ? viewSources()
+      : state.view === 'selftest' ? viewSelftest()
       : state.view === 'tools' ? viewTools() : viewHome());
     var v = state.view;
     if (v === 'home') root.innerHTML = viewHome();
@@ -58,6 +59,7 @@
     else if (v === 'cloud') root.innerHTML = viewCloud();
     else if (v === 'assistant') root.innerHTML = viewAssistant();
     else if (v === 'sources') root.innerHTML = viewSources();
+    else if (v === 'selftest') root.innerHTML = viewSelftest();
     else if (v === 'pb') root.innerHTML = viewPlaybook();
     else if (v === 'evidence') root.innerHTML = viewEvidence();
     else if (v === 'ioc') root.innerHTML = viewIoc();
@@ -78,7 +80,8 @@
       '<button class="mini" data-act="goto-sources">🗄️ Datenquellen (IDS/Asset)</button>' +
       '<button class="mini" data-act="goto-dashboard">📊 Live-Dashboard</button>' +
       '<button class="mini" data-act="goto-cloud">☁️ Cloud &amp; Veroeffentlichen</button>' +
-      '<button class="mini" data-act="goto-assistant">🤖 Assistent (KI-Fragen)</button></section>';
+      '<button class="mini" data-act="goto-assistant">🤖 Assistent (KI-Fragen)</button>' +
+      '<button class="mini" data-act="goto-selftest">🧪 Selbsttest</button></section>';
     h += '<section class="card"><h2>Schnellstart (Beispiele)</h2><div class="pbgrid">';
     IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).forEach(function (p) {
       h += '<button class="pbcard" data-act="new" data-id="' + p.id + '">' +
@@ -502,6 +505,37 @@
     return h;
   }
 
+  /* ------------------------------------------------------------ Selbsttest */
+  function viewSelftest() {
+    var h = '<section class="card"><div class="row"><h2>🧪 Selbsttest</h2>' + backLink() + '</div>' +
+      '<p class="muted">Prüft die Kernfunktionen direkt auf diesem Gerät (Logik + Geräte-Fähigkeiten) und die interaktiven Dinge per Tipp.</p>' +
+      '<button class="bigbtn" data-act="st-run">▶ Alle Tests ausführen</button></section>';
+    var r = state.stResult;
+    if (r) {
+      h += '<section class="card"><div class="row"><strong>Ergebnis</strong>' +
+        '<span class="badge">' + r.pass + ' ok · ' + r.fail + ' fehlgeschlagen</span></div>' +
+        (r.fail === 0 ? '<small class="ok-note">Alles grün ✓</small>' : '<small class="warn">' + r.fail + ' Punkt(e) prüfen</small>') + '</section>';
+      function block(title, arr) {
+        var x = '<section class="card"><h3>' + title + '</h3>';
+        arr.forEach(function (t) {
+          x += '<div class="strow"><span class="' + (t.ok ? 'st-ok' : 'st-bad') + '">' + (t.ok ? '✓' : '✗') + '</span> ' +
+            U.esc(t.name) + (t.info ? ' <small class="muted">' + U.esc(t.info) + '</small>' : '') + '</div>';
+        });
+        return x + '</section>';
+      }
+      h += block('Logik (' + r.logic.filter(function (t) { return t.ok; }).length + '/' + r.logic.length + ')', r.logic);
+      h += block('Geräte-Fähigkeiten (' + r.caps.filter(function (t) { return t.ok; }).length + '/' + r.caps.length + ')', r.caps);
+    }
+    h += '<section class="card"><h3>Interaktiv (Geräte-Praxis)</h3>' +
+      '<div class="row wrap"><button class="mini" data-act="st-dialog">Dialoge testen (confirm/prompt)</button>' +
+      '<button class="mini" data-act="st-photo">Kamera/Foto testen</button></div>' +
+      '<div class="row"><input id="stUrl" placeholder="Host/IDS-URL (z.B. https://10.20.0.5/api/ir-pilot/export)"></div>' +
+      '<button class="mini" data-act="st-fetch">Verbindung testen</button>' +
+      (state.stNet ? '<small class="' + (state.stNetOk ? 'muted' : 'warn') + '">' + U.esc(state.stNet) + '</small>' : '') +
+      '</section>';
+    return h;
+  }
+
   /* ------------------------------------------------------- KI-Assistent */
   function viewAssistant() {
     var A = IR.assistant, cfg = A.config(), on = A.enabled();
@@ -816,6 +850,28 @@
     if (act === 'src-adopt') {
       var f = (state.srcFound || []).filter(function (x) { return x.ip === id; })[0];
       if (f) { var r = IR.sources.adopt(f); toast(r ? 'IDS übernommen – ggf. Token ergänzen' : 'schon vorhanden / Max erreicht'); render(); }
+      return;
+    }
+    // ---- Selbsttest ----
+    if (act === 'goto-selftest') { state.view = 'selftest'; state.stResult = null; state.stNet = null; return render(); }
+    if (act === 'st-run') { state.stResult = IR.selftest.run(); toast(state.stResult.fail === 0 ? 'Alles grün' : (state.stResult.fail + ' fehlgeschlagen')); return render(); }
+    if (act === 'st-dialog') {
+      var okc = confirm('Selbsttest: bitte „OK" drücken.');
+      var val = prompt('Selbsttest: bitte etwas eingeben und „OK".', 'IR-Pilot');
+      toast('Dialoge: confirm=' + okc + ', prompt=' + (val != null ? '„' + val + '"' : 'abgebrochen'));
+      return;
+    }
+    if (act === 'st-photo') {
+      var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment');
+      inp.addEventListener('change', function () { toast(inp.files && inp.files[0] ? ('Foto ok: ' + inp.files[0].name) : 'kein Foto'); });
+      inp.click(); return;
+    }
+    if (act === 'st-fetch') {
+      var url = ($('#stUrl') || {}).value; if (!url) { toast('URL eingeben'); return; }
+      state.stNet = '▶ teste ' + url + ' …'; state.stNetOk = false; render();
+      var t0 = Date.now();
+      fetch(url, { method: 'GET' }).then(function (r) { state.stNet = 'Antwort: HTTP ' + r.status + ' (' + (Date.now() - t0) + ' ms) – erreichbar ✓'; state.stNetOk = true; render(); })
+        .catch(function (e) { state.stNet = 'Fehler: ' + (e && e.message || e) + ' – CORS/SSL/Erreichbarkeit prüfen (APK statt PWA?).'; state.stNetOk = false; render(); });
       return;
     }
     // ---- KI-Assistent ----

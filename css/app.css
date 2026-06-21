@@ -112,6 +112,9 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
 .msg.ai{align-self:flex-start;background:#0c2944;border:1px solid var(--line)}
 .msg.ai p:first-child{margin-top:0}.msg.ai p:last-child{margin-bottom:0}
 textarea#asstInput{width:100%;min-height:60px}
+.strow{padding:4px 0;border-top:1px solid var(--line);font-size:13.5px}.strow:first-child{border-top:0}
+.st-ok{color:var(--ok);font-weight:700}.st-bad{color:var(--crit);font-weight:700}
+.ok-note{color:var(--ok)}
 .findings{background:#0c2944;border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:10px;margin:0 0 10px}
 .findings .findlist{margin:4px 0}.findings .frow{font-size:13px;margin:2px 0}
 .findings code{background:#06182a;padding:1px 5px;border-radius:5px}

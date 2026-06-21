@@ -161,6 +161,14 @@ function run() {
     ok(IR.assistant.enabled() === true, 'Assistent-Key gespeichert');
     IR.assistant.setConfig({ apiKey: '' });
 
+    // ---- Selbsttest ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="goto-selftest"]').click();
+    ok(/Selbsttest/.test(d.querySelector('#app').innerHTML) && !!d.querySelector('[data-act="st-run"]'), 'Selbsttest-Ansicht');
+    ok(IR.selftest.logic().every(function (t) { return t.ok; }), 'Selbsttest-Logik komplett grün');
+    d.querySelector('[data-act="st-run"]').click();
+    ok(d.querySelectorAll('.strow').length >= 10 && !!d.querySelector('[data-act="st-dialog"]') && !!d.querySelector('[data-act="st-fetch"]'), 'Selbsttest-Ergebnis + interaktive Tests gerendert');
+
     // ---- Datenquellen (IDS/Asset) ----
     d.querySelector('#home').click();
     d.querySelector('[data-act="goto-sources"]').click();
