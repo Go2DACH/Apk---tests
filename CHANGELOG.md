@@ -2,6 +2,15 @@
 
 ## Unreleased — Multi-Host, Cloud & Auslieferung
 
+- **Eine Quelle statt zwei Apps**: Das **Werkzeug-Kit** (Boot-Stick-Skripte,
+  `control-server.py`, Windows-Sammler, App) ist als `ir-pilot-kit.zip` **in die
+  APK eingebettet** und über **„📦 Kit herunterladen"** (Geräte-Ansicht) direkt auf
+  USB/Speicher exportierbar (nativ via `IRBridge.exportAsset`, im Web als Download).
+  Auf Pages zusätzlich unter `…/ir-pilot-kit.zip` (`build/make-kit.sh`).
+- **Playbook-Stand im Dashboard**: Snapshot trägt jetzt die **aktuelle Phase**;
+  App- und Pages-Dashboard zeigen „Phase: …".
+
+
 - **No-Root-Forensik & Boot-Stick-Fernsteuerung** (`desktop/control-server.py`):
   headless vom Smartphone steuern, ohne Tastatur am Ziel; `mobile/hid-keyboard.md`.
 - **Mehrere Forensik-Hosts** (bis 10, `js/hosts.js`): Auto-Discovery (USB/Netz),

@@ -163,6 +163,11 @@
       '<p class="muted">' + (isN
         ? 'Native Aktionen verfuegbar – privilegierte Forensik direkt vom Geraet.'
         : 'Im Browser sind privilegierte Aktionen gesperrt (Sandbox). Unten die Skripte/Anleitungen; in der APK laufen sie nativ.') + '</p></section>';
+    h += '<section class="card"><div class="row"><strong>📦 Werkzeug-Kit (Boot-Stick · Windows · Server · App)</strong></div>' +
+      '<p class="muted">Eine Quelle für alles On-Site: Forensik-Linux bauen (<code>build-live-iso.sh</code>), ' +
+      '<code>control-server.py</code>, Windows-Sammler und die App selbst – ist in dieser App enthalten.</p>' +
+      '<button class="bigbtn" data-act="kit-export">⤓ Kit herunterladen (auf USB/Speicher)</button>' +
+      '<small class="muted">' + (isN ? 'Landet in „Downloads" – auf den USB-Stick kopieren.' : 'Speichert ir-pilot-kit.zip; auf USB entpacken.') + '</small></section>';
     n.capabilities().forEach(function (cap) {
       h += '<section class="card nativecap"><div class="row"><strong>' + cap.icon + ' ' + U.esc(cap.name) + '</strong>' +
         '<span class="badge">' + (cap.native && isN ? 'nativ' : 'manuell') + '</span></div>' +
@@ -305,8 +310,9 @@
     cases.slice().reverse().forEach(function (x) {
       var pb = IR.Case.playbook(x), pr = pb ? IR.engine.progress(pb, x) : { pct: 0, done: 0, total: 0 };
       var st = (x.flags && x.flags.status) || 'offen';
+      var phase = IR.cloud && IR.cloud.currentPhase ? IR.cloud.currentPhase(x, pb) : '';
       h += '<div class="row caseitem"><button class="link" data-act="open" data-id="' + x.id + '"><strong>' + U.esc(x.title) + '</strong>' +
-        '<small>' + U.esc(x.org || '') + ' · ' + U.esc(st) + ' · ' + pr.done + '/' + pr.total + ' (' + pr.pct + ' %)</small></button></div>';
+        '<small>' + U.esc(x.org || '') + ' · ' + U.esc(st) + (phase ? ' · ' + U.esc(phase) : '') + ' · ' + pr.done + '/' + pr.total + ' (' + pr.pct + ' %)</small></button></div>';
     });
     h += '</section>';
 
@@ -644,6 +650,7 @@
     if (act === 'cloud-pub-all') { cloudPublish(IR.store.list()); return; }
     if (act === 'native-run') { if (!IR.native.run(id)) toast('Nur in der APK nativ verfuegbar'); return; }
     if (act === 'native-reload') { IR.native.reloadData(); return; }
+    if (act === 'kit-export') { if (IR.native.exportKit()) toast('Werkzeug-Kit wird gespeichert'); else toast('Download nicht moeglich'); return; }
     if (act === 'new') {
       var pb = IR.engine.playbook(id);
       var nc = IR.Case.create({ playbookId: id, title: pb.title, sector: pb.category, classification: 'TLP:AMBER' });

@@ -68,6 +68,17 @@
     },
 
     // --- schlanker Snapshot eines Falls fuers Dashboard ---
+    // Aktuelle Playbook-Phase = erste Phase mit offenen (sichtbaren) Schritten.
+    currentPhase: function (cse, pb) {
+      if (!pb || !pb.phases) return '';
+      for (var i = 0; i < pb.phases.length; i++) {
+        var ph = pb.phases[i];
+        var steps = (IR.engine && IR.engine.visibleSteps) ? IR.engine.visibleSteps(ph, cse) : (ph.steps || []);
+        var done = steps.filter(function (s) { return cse.checks && cse.checks[s.id]; }).length;
+        if (done < steps.length) return ph.title;
+      }
+      return pb.phases.length ? pb.phases[pb.phases.length - 1].title : '';
+    },
     snapshot: function (cse, hostFiles) {
       var U = IR.util, pb = IR.Case.playbook(cse);
       var pr = pb ? IR.engine.progress(pb, cse) : { pct: 0, done: 0, total: 0 };
@@ -75,6 +86,7 @@
         schema: 1, id: cse.id, title: cse.title, org: cse.org || '', responder: cse.responder || '',
         status: (cse.flags && cse.flags.status) || 'offen',
         severity: (pb && pb.severity) || '', classification: cse.classification || '',
+        phase: this.currentPhase(cse, pb),
         progress: pr.pct, done: pr.done, total: pr.total,
         iocs: (cse.iocs || []).length, evidence: (cse.evidence || []).length,
         createdAt: cse.createdAt, updated: U.nowISO(),
@@ -84,7 +96,7 @@
     },
     indexEntry: function (snap) {
       return { id: snap.id, title: snap.title, org: snap.org, status: snap.status,
-        severity: snap.severity, progress: snap.progress, done: snap.done, total: snap.total,
+        severity: snap.severity, phase: snap.phase || '', progress: snap.progress, done: snap.done, total: snap.total,
         files: (snap.files || []).length, updated: snap.updated };
     },
 

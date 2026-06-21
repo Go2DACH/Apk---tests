@@ -24,6 +24,18 @@
     // Online-Daten/ISO nachladen (Auto-Update von Pages)
     reloadData: function () { if (has('reloadData')) { B.reloadData(); return true; } if (root.location) { root.location.reload(); return true; } return false; },
 
+    // Werkzeug-Kit (ir-pilot-kit.zip) bereitstellen: APK -> Downloads/USB,
+    // Browser -> normaler Datei-Download. true = ausgeloest.
+    exportKit: function (name) {
+      name = name || 'ir-pilot-kit.zip';
+      if (has('exportAsset')) { B.exportAsset(name); return true; }
+      try {
+        var doc = root.document; if (!doc) return false;
+        var a = doc.createElement('a'); a.href = name; a.download = name;
+        doc.body.appendChild(a); a.click(); doc.body.removeChild(a); return true;
+      } catch (e) { return false; }
+    },
+
     // Katalog der privilegierten Fähigkeiten (für die "Geräte"-Ansicht)
     capabilities: function () {
       return [

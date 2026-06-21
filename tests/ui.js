@@ -99,6 +99,7 @@ function run() {
     d.querySelector('[data-act="goto-native"]').click();
     ok(d.querySelectorAll('.nativecap').length >= 4, 'Geraete-Ansicht zeigt Faehigkeiten');
     ok(/Browser/.test(d.querySelector('#app').innerHTML), 'zeigt Plattform/Fallback (Browser)');
+    ok(!!d.querySelector('[data-act="kit-export"]') && /Werkzeug-Kit/.test(d.querySelector('#app').innerHTML), 'Kit-Download in Geraete-Ansicht');
 
     // ---- Forensik-Hosts: hinzufuegen (bis 10) ----
     d.querySelector('#home').click();

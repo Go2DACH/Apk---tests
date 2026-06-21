@@ -89,7 +89,7 @@ a{color:var(--acc)}pre{white-space:pre-wrap;background:#06182a;border:1px solid 
       h += '<div class="inc"><div class="row"><span><strong>' + esc(e.title) + '</strong> ' +
         '<small>' + esc(e.org || '') + '</small></span>' +
         '<span class="badge ' + sevClass(e.severity) + '">' + esc(e.severity || '–') + '</span></div>' +
-        '<div class="row"><small>Status: ' + esc(e.status || 'offen') + ' · ' + (e.done || 0) + '/' + (e.total || 0) + ' Massnahmen · ' + (e.files || 0) + ' Datei(en)</small>' +
+        '<div class="row"><small>Status: ' + esc(e.status || 'offen') + (e.phase ? ' · Phase: ' + esc(e.phase) : '') + ' · ' + (e.done || 0) + '/' + (e.total || 0) + ' Massnahmen · ' + (e.files || 0) + ' Datei(en)</small>' +
         '<button data-open="' + esc(e.id) + '">' + (open ? 'Details ▲' : 'Details ▼') + '</button></div>' +
         '<div class="bar"><div style="width:' + (e.progress || 0) + '%"></div></div>';
       if (open) h += renderDetail(e.id);

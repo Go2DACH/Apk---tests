@@ -42,6 +42,8 @@ jobs:
           cp -r index.html dashboard.html sw.js manifest.webmanifest \
                 css js data assets tools mobile desktop windows cloud README.md _site/
           touch _site/.nojekyll   # GitHub Pages: Jekyll aus (Pfade mit _, .json etc.)
+          bash build/make-kit.sh           # Werkzeug-Kit als Download bereitstellen
+          cp dist/ir-pilot-kit.zip _site/ir-pilot-kit.zip
 
       - name: Publish to gh-pages branch
         run: |

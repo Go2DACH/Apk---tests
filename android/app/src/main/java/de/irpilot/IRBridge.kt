@@ -74,6 +74,42 @@ class IRBridge(private val act: AppCompatActivity, private val web: () -> WebVie
     @JavascriptInterface
     fun reloadData() = act.runOnUiThread { web().loadUrl(MainActivity.REMOTE_URL) }
 
+    /**
+     * Eingebettetes Asset (z.B. das Werkzeug-Kit ir-pilot-kit.zip) nach Downloads
+     * kopieren – damit der Boot-Stick/Windows-Teil direkt vom Handy auf USB landet.
+     * Gibt true zurueck (JS-seitig als Erfolg gewertet); Ergebnis via Toast.
+     */
+    @JavascriptInterface
+    fun exportAsset(name: String): Boolean {
+        act.runOnUiThread {
+            try {
+                val mime = if (name.endsWith(".zip")) "application/zip" else "application/octet-stream"
+                val data = act.assets.open("www/$name").use { it.readBytes() }
+                val outName = name.substringAfterLast('/')
+                if (Build.VERSION.SDK_INT >= 29) {
+                    val cv = ContentValues().apply {
+                        put(MediaStore.Downloads.DISPLAY_NAME, outName)
+                        put(MediaStore.Downloads.MIME_TYPE, mime)
+                        put(MediaStore.Downloads.IS_PENDING, 1)
+                    }
+                    val uri = act.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv)
+                    uri?.let {
+                        act.contentResolver.openOutputStream(it)?.use { os -> os.write(data) }
+                        cv.clear(); cv.put(MediaStore.Downloads.IS_PENDING, 0)
+                        act.contentResolver.update(it, cv, null, null)
+                    }
+                } else {
+                    val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    java.io.File(dir, outName).writeBytes(data)
+                }
+                toast("Kit gespeichert: $outName (Downloads)")
+            } catch (e: Exception) {
+                toast("Kit-Export fehlgeschlagen: ${e.message}")
+            }
+        }
+        return true
+    }
+
     /** Netz-Mitschnitt: PCAPdroid oeffnen (pcap ohne Root via VpnService). */
     @JavascriptInterface
     fun startCapture() = openOrHint("com.emanuelef.remote_capture",

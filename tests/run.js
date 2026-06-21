@@ -262,11 +262,12 @@ group('Native-Schicht (Browser-Fallback)', function () {
   ok(IR.native.save('x.txt', 'y') === false, 'save ohne Bruecke -> false');
   // Mit simulierter Bruecke
   var called = {};
-  globalThis.AndroidIR = { platform: function () { return 'android-34'; }, startCapture: function () { called.cap = 1; }, saveFile: function () { called.save = 1; } };
+  globalThis.AndroidIR = { platform: function () { return 'android-34'; }, startCapture: function () { called.cap = 1; }, saveFile: function () { called.save = 1; }, exportAsset: function (n) { called.kit = n; return true; } };
   delete require.cache[require.resolve('../js/native.js')]; require('../js/native.js');
   ok(IR.native.isNative() === true, 'mit Bruecke nativ');
   ok(IR.native.platform() === 'android-34', 'Plattform von Bruecke');
   ok(IR.native.run('capture') === true && called.cap === 1, 'native Capture ausgefuehrt');
+  ok(IR.native.exportKit() === true && called.kit === 'ir-pilot-kit.zip', 'Kit-Export ruft native exportAsset');
   delete globalThis.AndroidIR;
   delete require.cache[require.resolve('../js/native.js')]; require('../js/native.js');
 });
@@ -339,6 +340,8 @@ group('Cloud-Sync (Git-Speicher)', function () {
   var snap = C.snapshot(c, [{ path: 'intake/x.zip', size: 10, host: 'Kasse', url: 'http://h/download' }]);
   ok(snap.id === c.id && snap.title === 'Cloud-Test' && snap.files.length === 1, 'Snapshot mit Datei-Verweis');
   ok(typeof snap.report === 'string' && snap.report.indexOf('Incident-Report') >= 0, 'Snapshot enthaelt Report');
+  ok(typeof snap.phase === 'string' && snap.phase.length > 0, 'Snapshot enthaelt Playbook-Phase (' + snap.phase + ')');
+  ok(C.indexEntry(snap).phase === snap.phase, 'Index-Eintrag traegt Phase fuers Dashboard');
   ok(C.indexEntry(snap).files === 1 && C.indexEntry(snap).report === undefined, 'Index-Eintrag schlank (Datei-Anzahl, kein Report)');
 });
 
