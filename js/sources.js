@@ -116,18 +116,34 @@
     ['192.168.0.1', '192.168.1.1', '192.168.178.1', '10.0.0.1'].forEach(add);
     return Object.keys(ips);
   }
-  function probeOne(ip, port, token, timeout) {
+  // Kandidaten je IP: zuerst die LAN-HTTPS-Adresse der Appliance (Port 443),
+  // dann http:8244 als Fallback (falls jemand den Kiosk-Port im LAN exponiert).
+  function candUrls(ip) {
+    return ['https://' + ip + IR.sources.PATH, 'http://' + ip + ':' + IR.sources.PORT + IR.sources.PATH];
+  }
+  function probeUrl(url, token, timeout) {
     if (typeof root.fetch !== 'function') return Promise.resolve(null);
-    var url = 'http://' + ip + ':' + (port || IR.sources.PORT) + IR.sources.PATH;
     var ctrl = (typeof root.AbortController === 'function') ? new root.AbortController() : null;
     var t = ctrl ? setTimeout(function () { ctrl.abort(); }, timeout || 1500) : null;
     var headers = { 'Accept': 'application/json' }; if (token) headers['Authorization'] = 'Bearer ' + token;
     return root.fetch(url, { headers: headers, signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
       if (t) clearTimeout(t);
       // 200 = offen, 401 = IDS vorhanden, braucht Token. Beides = Treffer.
-      if (r.status === 200 || r.status === 401) return { ip: ip, port: (port || IR.sources.PORT), url: url, needsToken: r.status === 401 };
+      if (r.status === 200 || r.status === 401) return { url: url, needsToken: r.status === 401 };
       return null;
     }).catch(function () { if (t) clearTimeout(t); return null; });
+  }
+  // Eine IP testen: Kandidaten der Reihe nach, erster Treffer gewinnt (https zuerst).
+  function probeOne(ip, opts) {
+    opts = opts || {};
+    return candUrls(ip).reduce(function (chain, u) {
+      return chain.then(function (found) {
+        if (found) return found;
+        return probeUrl(u, opts.token, opts.timeout || 1500).then(function (r) {
+          return r ? { ip: ip, url: r.url, scheme: r.url.indexOf('https') === 0 ? 'https' : 'http', needsToken: r.needsToken } : null;
+        });
+      });
+    }, Promise.resolve(null));
   }
   function pool(items, worker, limit) {
     return new Promise(function (resolve) {
@@ -146,12 +162,13 @@
   IR.sources.guessSubnet = guessSubnet;
   IR.sources.expandBase = expandBase;
   IR.sources.probe = probeOne;
-  // IDS im (Sub-)Netz suchen. base = "192.168.1" o.ae.; opts.token optional.
+  IR.sources.probeUrl = probeUrl;
+  // IDS im (Sub-)Netz suchen (https:443 zuerst, http:8244 als Fallback).
+  // base = "192.168.1" o.ae.; opts.token optional.
   IR.sources.discover = function (base, opts) {
     opts = opts || {};
     var ips = expandBase(base || guessSubnet());
-    var port = opts.port || IR.sources.PORT, token = opts.token || '';
-    return pool(ips, function (ip) { return probeOne(ip, port, token, opts.timeout || 1500); }, opts.concurrency || 24);
+    return pool(ips, function (ip) { return probeOne(ip, { token: opts.token || '', timeout: opts.timeout || 1500 }); }, opts.concurrency || 24);
   };
   // Gefundenes IDS als Datenquelle uebernehmen (sofern noch nicht vorhanden).
   IR.sources.adopt = function (found, label) {

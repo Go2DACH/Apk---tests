@@ -45,13 +45,18 @@ Array wird als **Asset-Liste** interpretiert.
 | Indikatoren | `iocs[]` | IOC-Liste |
 | Hosts | `hosts[]` | IOC `host` |
 
-## Auto-Discovery (Port 8244)
+## Auto-Discovery
 IR-Pilot kann das IDS im Netz selbst finden: **„🗄️ Datenquellen → 🔍 IDS
-automatisch suchen"** scannt `&lt;Subnetz&gt;.1–254` auf **Port 8244** nach dem Pfad
-`/api/ir-pilot/export` (HTTP 200 = offen, 401 = vorhanden, Token nötig). Damit das
-klappt:
-- Endpunkt unter **`/api/ir-pilot/export` auf Port `8244`** bereitstellen.
-- Server an **`0.0.0.0`** binden (nicht nur `localhost`), Port 8244 in der Firewall offen.
+automatisch suchen"** scannt `&lt;Subnetz&gt;.1–254` nach dem Pfad
+`/api/ir-pilot/export` – zuerst per **HTTPS (LAN-Adresse der Appliance, Port 443)**,
+dann **http:8244** als Fallback (HTTP 200 = offen, 401 = vorhanden, Token nötig).
+
+- Erreichbar als **`https://<appliance-ip>/api/ir-pilot/export`** (so liefert die
+  Appliance im LAN). Selbst-signierte Zertifikate akzeptiert die **APK** für
+  **private IP-Bereiche** (10/172.16–31/192.168/169.254/127); die reine
+  **https-Pages-PWA** kann self-signed nicht – dort die APK nutzen.
+- Optional zusätzlich **http auf `0.0.0.0:8244`** im LAN exponieren → dann geht es
+  auch ohne Zertifikatsthema.
 - WLAN ohne **AP-/Client-Isolation** (sonst Handy-Hotspot oder USB-Ethernet nutzen).
 
 ## Auth & Netz

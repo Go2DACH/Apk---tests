@@ -1,6 +1,8 @@
 package de.irpilot
 
+import android.net.http.SslError
 import android.os.Bundle
+import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -34,7 +36,16 @@ class MainActivity : AppCompatActivity() {
             // erreichen, auch wenn sie selbst von file:///https geladen ist.
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
-        web.webViewClient = WebViewClient()
+        web.webViewClient = object : WebViewClient() {
+            // Forensik-Datenquellen (z.B. IDS-Appliance) liefern im LAN oft per
+            // HTTPS mit selbst-signiertem Zertifikat. Im isolierten Analyse-Netz
+            // akzeptieren wir SSL-Fehler NUR fuer private IP-Bereiche; oeffentliche
+            // Hosts bleiben strikt validiert.
+            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                val host = try { android.net.Uri.parse(error?.url ?: "").host ?: "" } catch (e: Exception) { "" }
+                if (isPrivateHost(host)) handler?.proceed() else handler?.cancel()
+            }
+        }
         web.webChromeClient = WebChromeClient()
         web.addJavascriptInterface(IRBridge(this) { web }, "AndroidIR")
 
@@ -44,6 +55,24 @@ class MainActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (web.canGoBack()) web.goBack() else super.onBackPressed()
+    }
+
+    /** Private/lokale Hosts (RFC1918 + link-local + loopback) – nur diese duerfen self-signed. */
+    private fun isPrivateHost(host: String): Boolean {
+        if (host.isEmpty()) return false
+        if (host == "localhost" || host.endsWith(".local")) return true
+        val p = host.split(".")
+        if (p.size != 4) return false
+        val o = p.map { it.toIntOrNull() ?: return false }
+        if (o.any { it < 0 || it > 255 }) return false
+        return when {
+            o[0] == 10 -> true
+            o[0] == 127 -> true
+            o[0] == 192 && o[1] == 168 -> true
+            o[0] == 172 && o[1] in 16..31 -> true
+            o[0] == 169 && o[1] == 254 -> true
+            else -> false
+        }
     }
 
     companion object {

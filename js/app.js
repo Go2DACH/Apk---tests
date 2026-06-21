@@ -454,7 +454,7 @@
     h += '<div class="hostadd"><div class="row"><strong>🔍 IDS automatisch suchen (Port ' + IR.sources.PORT + ')</strong></div>' +
       '<div class="row"><label>Subnetz</label><input id="srcSubnet" value="' + U.esc(state.srcSubnet || IR.sources.guessSubnet()) + '" placeholder="z.B. 192.168.1"></div>' +
       '<button class="mini" data-act="src-discover"' + (state.srcScan ? ' disabled' : '') + '>' + (state.srcScan ? 'suche …' : 'Im WLAN/Netz suchen') + '</button>' +
-      '<small class="muted">Scannt &lt;Subnetz&gt;.1–254 auf Port ' + IR.sources.PORT + ' nach dem IDS-Export. WLAN: Handy &amp; IDS im selben Netz (keine AP-Isolation).</small></div>';
+      '<small class="muted">Scannt &lt;Subnetz&gt;.1–254 nach dem IDS-Export: <b>https</b> (Appliance-LAN) und http:' + IR.sources.PORT + '. WLAN: Handy &amp; IDS im selben Netz (keine AP-Isolation). Self-signed-HTTPS funktioniert in der APK.</small></div>';
     if (state.srcFound) {
       if (!state.srcFound.length) h += '<small class="warn">Kein IDS gefunden – Subnetz/Port prüfen, IDS auf 0.0.0.0 gebunden?</small>';
       state.srcFound.forEach(function (f) {
@@ -466,7 +466,7 @@
     if (list.length < IR.sources.MAX) {
       h += '<div class="hostadd"><div class="row"><strong>Manuell hinzufügen</strong></div>' +
         '<div class="row"><input id="srcLabel" placeholder="Name (z.B. Mein-IDS)"></div>' +
-        '<div class="row"><input id="srcUrl" placeholder="JSON-URL (z.B. http://192.168.1.50:8244/api/ir-pilot/export)"></div>' +
+        '<div class="row"><input id="srcUrl" placeholder="JSON-URL (z.B. https://192.168.1.50/api/ir-pilot/export)"></div>' +
         '<div class="row"><input id="srcToken" type="password" placeholder="Token (optional, Bearer)"></div>' +
         '<button class="mini" data-act="src-add">+ Datenquelle hinzufügen</button></div>';
     }

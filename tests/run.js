@@ -385,13 +385,13 @@ function sourcesAsync() {
 function discoveryAsync() {
   var S = IR.sources;
   globalThis.fetch = function (url) {
-    var hit = url.indexOf('192.168.5.42:8244/api/ir-pilot/export') >= 0;
-    if (hit) return Promise.resolve({ status: 401 });               // gefunden, Token noetig
-    return Promise.reject(new Error('nope'));                        // alle anderen offline
+    // Appliance: LAN-HTTPS auf 443, Token noetig (401). Andere offline.
+    if (url === 'https://192.168.5.42/api/ir-pilot/export') return Promise.resolve({ status: 401 });
+    return Promise.reject(new Error('nope'));
   };
   return S.discover('192.168.5', { timeout: 50, concurrency: 64 }).then(function (found) {
-    ok(found.length === 1 && found[0].ip === '192.168.5.42' && found[0].needsToken === true, 'Discovery findet IDS auf :8244');
-    ok(found[0].url === 'http://192.168.5.42:8244/api/ir-pilot/export', 'Discovery-URL korrekt');
+    ok(found.length === 1 && found[0].ip === '192.168.5.42' && found[0].needsToken === true, 'Discovery findet IDS (https:443)');
+    ok(found[0].url === 'https://192.168.5.42/api/ir-pilot/export' && found[0].scheme === 'https', 'Discovery bevorzugt LAN-HTTPS');
     delete globalThis.fetch;
   });
 }
