@@ -41,10 +41,13 @@
     Array.prototype.forEach.call(document.querySelectorAll('.nav-btn'), function (b) {
       b.classList.toggle('active', b.dataset.view === state.view);
     });
-    if (!c) return root.innerHTML = (state.view === 'wizard' ? viewWizard() : viewHome());
+    if (!c) return root.innerHTML = (state.view === 'wizard' ? viewWizard()
+      : state.view === 'native' ? viewNative()
+      : state.view === 'tools' ? viewTools() : viewHome());
     var v = state.view;
     if (v === 'home') root.innerHTML = viewHome();
     else if (v === 'wizard') root.innerHTML = viewWizard();
+    else if (v === 'native') root.innerHTML = viewNative();
     else if (v === 'pb') root.innerHTML = viewPlaybook();
     else if (v === 'evidence') root.innerHTML = viewEvidence();
     else if (v === 'ioc') root.innerHTML = viewIoc();
@@ -59,7 +62,8 @@
     var h = '<section class="card start"><h2>Neuer Vorfall</h2>' +
       '<p class="muted">Gefuehrter Start: Umgebung &amp; Beobachtung waehlen (ohne Technikwissen), Fragebogen beantworten – das Tool schlaegt eine Vermutung vor und baut das Playbook.</p>' +
       '<button class="bigbtn" data-act="wiz-start">▶ Gefuehrter Start (Assistent)</button>' +
-      '<button class="mini" data-act="new" data-id="generic">Generisches Playbook starten</button></section>';
+      '<button class="mini" data-act="new" data-id="generic">Generisches Playbook starten</button>' +
+      '<button class="mini" data-act="goto-native">📡 Geraete &amp; Forensik (nativ)</button></section>';
     h += '<section class="card"><h2>Schnellstart (Beispiele)</h2><div class="pbgrid">';
     IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).forEach(function (p) {
       h += '<button class="pbcard" data-act="new" data-id="' + p.id + '">' +
@@ -139,6 +143,32 @@
     });
     if (!ranked.length) h += '<p class="muted">Keine eindeutige Vermutung – generisches Playbook nutzen.</p>';
     return h + '</section><div class="wnav"><button class="mini" data-act="wiz-back">◀ Zurueck</button><button class="bigbtn" data-act="wiz-generate">Playbook erzeugen ✓</button></div>';
+  }
+
+  function viewNative() {
+    var n = IR.native, isN = n.isNative(), plat = n.platform();
+    var h = '<section class="card"><h2>Geraete &amp; Forensik</h2>' +
+      '<div class="row"><span class="badge">' + (isN ? 'APK · ' + plat : 'Browser · ' + plat) + '</span>' +
+      '<button class="mini" data-act="native-reload">Daten aktualisieren</button>' +
+      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      '<p class="muted">' + (isN
+        ? 'Native Aktionen verfuegbar – privilegierte Forensik direkt vom Geraet.'
+        : 'Im Browser sind privilegierte Aktionen gesperrt (Sandbox). Unten die Skripte/Anleitungen; in der APK laufen sie nativ.') + '</p></section>';
+    n.capabilities().forEach(function (cap) {
+      h += '<section class="card nativecap"><div class="row"><strong>' + cap.icon + ' ' + U.esc(cap.name) + '</strong>' +
+        '<span class="badge">' + (cap.native && isN ? 'nativ' : 'manuell') + '</span></div>' +
+        '<p class="muted">' + U.esc(cap.desc) + '</p>';
+      if (isN && cap.native) {
+        h += '<button class="mini" data-act="native-run" data-id="' + cap.id + '">Ausfuehren (nativ)</button>';
+      } else {
+        h += '<small class="warn">' + U.esc(cap.webHint) + '</small>';
+        if (cap.cmd) h += '<pre class="code">' + U.esc(cap.cmd) + '</pre>';
+        if (cap.script) h += '<div><button class="mini" data-act="tool-open" data-id="' + U.esc(cap.script) + '">Skript: ' + U.esc(cap.script) + '</button></div>';
+        if (cap.mobile) h += '<div><small>Datei auf dem Stick: <code>' + U.esc(cap.mobile) + '</code></small></div>';
+      }
+      h += '</section>';
+    });
+    return h + '<section class="card"><h3>Architektur</h3><p class="muted">Pages/PWA hält Daten &amp; UI · APK macht die Arbeit (Capture/Scan/Flash) · Ergebnisse via „Daten importieren" zurück in den Fall.</p></section>';
   }
 
   function viewPlaybook() {
@@ -294,6 +324,10 @@
     if (act === 'wiz-back') { wiz().step = Math.max(0, wiz().step - 1); return render(); }
     if (act === 'wiz-generate') { return wizGenerate(); }
     if (act === 'tool-open') { go('tools'); setTimeout(function () { var el = document.getElementById('tool-' + id); if (el) el.scrollIntoView(); }, 50); return; }
+    if (act === 'goto-native') { state.view = 'native'; return render(); }
+    if (act === 'goto-home') { state.caseId = null; c = null; state.view = 'home'; return render(); }
+    if (act === 'native-run') { if (!IR.native.run(id)) toast('Nur in der APK nativ verfuegbar'); return; }
+    if (act === 'native-reload') { IR.native.reloadData(); return; }
     if (act === 'new') {
       var pb = IR.engine.playbook(id);
       var nc = IR.Case.create({ playbookId: id, title: pb.title, sector: pb.category, classification: 'TLP:AMBER' });

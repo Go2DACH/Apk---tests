@@ -89,6 +89,12 @@ function run() {
     ok(d.querySelector('.derivation'), 'Generiertes Playbook wird angezeigt');
     ok(IR.store.list().some(function (x) { return x.playbook && x.playbook.generated; }), 'Generierter Fall gespeichert');
 
+    // ---- Geraete/Native-Ansicht (Browser-Fallback) ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="goto-native"]').click();
+    ok(d.querySelectorAll('.nativecap').length >= 4, 'Geraete-Ansicht zeigt Faehigkeiten');
+    ok(/Browser/.test(d.querySelector('#app').innerHTML), 'zeigt Plattform/Fallback (Browser)');
+
     console.log('\nUI: ' + passes + ' ok, ' + fails + ' fail');
     process.exit(fails ? 1 : 0);
   } catch (e) {

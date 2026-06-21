@@ -1,6 +1,7 @@
 /* IR-Pilot – Headless-Tests (Node). Validiert Daten, Engine, Bericht, Comms. */
 'use strict';
 require('../js/core.js');
+require('../js/native.js');
 require('../data/catalog.js');
 require('../data/comms.js');
 require('../data/toolkit.js');
@@ -246,6 +247,26 @@ group('Framework: Playbook-Generierung', function () {
   var md = IR.report.markdown(c);
   ok(/Incident-Report/.test(md) && /Durchgefuehrte Massnahmen/.test(md), 'Report fuer generiertes Playbook');
   ok(IR.engine.progress(pb, c).pct === 100, 'Fortschritt 100% nach Durchlauf');
+});
+
+group('Native-Schicht (Browser-Fallback)', function () {
+  ok(IR.native && IR.native.isNative() === false, 'im Node/Browser nicht nativ');
+  ok(IR.native.platform() === 'web', 'Plattform = web ohne Bruecke');
+  var caps = IR.native.capabilities();
+  ok(caps.length >= 4, '>=4 Faehigkeiten (Capture/Scan/Flash/USB)');
+  ok(caps.every(function (x) { return x.id && x.name && x.webHint; }), 'jede Faehigkeit hat Web-Fallback-Hinweis');
+  ok(caps.some(function (x) { return x.id === 'capture'; }) && caps.some(function (x) { return x.id === 'flash'; }), 'Capture + Flash vorhanden');
+  ok(IR.native.run('capture') === false, 'native Aktion ohne Bruecke -> false');
+  ok(IR.native.save('x.txt', 'y') === false, 'save ohne Bruecke -> false');
+  // Mit simulierter Bruecke
+  var called = {};
+  globalThis.AndroidIR = { platform: function () { return 'android-34'; }, startCapture: function () { called.cap = 1; }, saveFile: function () { called.save = 1; } };
+  delete require.cache[require.resolve('../js/native.js')]; require('../js/native.js');
+  ok(IR.native.isNative() === true, 'mit Bruecke nativ');
+  ok(IR.native.platform() === 'android-34', 'Plattform von Bruecke');
+  ok(IR.native.run('capture') === true && called.cap === 1, 'native Capture ausgefuehrt');
+  delete globalThis.AndroidIR;
+  delete require.cache[require.resolve('../js/native.js')]; require('../js/native.js');
 });
 
 console.log('\n' + passes + ' ok, ' + fails + ' fail');

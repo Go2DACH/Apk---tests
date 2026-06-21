@@ -9,6 +9,34 @@ Fold 5.
 > Gebaut für den Ernstfall: Du hast nur Handy, USB-Stick und USB-Ethernet dabei
 > und musst sofort strukturiert, beweissicher und meldepflicht-konform arbeiten.
 
+## Architektur: Pages (Daten/UI) + APK (Arbeit)
+
+Eine Codebasis, zwei Auslieferungswege – als **Hybrid**:
+
+- **GitHub Pages / PWA = Daten & UI.** Hält App, Playbooks/Kataloge/Comms/Tools,
+  Fallverwaltung (lokal), Berichte. Offline-fähig, installierbar. Deploy:
+  `.github/workflows/pages.yml`.
+- **Android-APK = die Arbeit.** WebView lädt **dieselbe** App (gebündelt offline,
+  „Daten aktualisieren" zieht die neueste Version von Pages) und ergänzt eine
+  **native Brücke** (`window.AndroidIR`) für das, was der Browser nicht darf.
+  Projekt unter `android/`, Build: `.github/workflows/build-apk.yml` → APK-Artefakt.
+
+Warum die APK nötig ist (Browser-Sandbox):
+
+| Aufgabe | Web/PWA | APK (nativ) |
+|---|---|---|
+| Playbook-UI, Fälle, Berichte, Comms, DNS/DoH | ✅ | ✅ |
+| **WiFi/Ethernet-Mitschnitt (pcap)** | ❌ | ✅ ohne Root via VpnService (PCAPdroid); echtes TAP an USB-Ethernet = Root/tcpdump |
+| **Netz-Scan / Host-Discovery** | ❌ | ✅ gebündeltes nmap |
+| **Boot-Stick schreiben** | ❌ | ✅ ohne Root (USB-Host, EtchDroid) – ISO bauen bleibt Linux/CI |
+| Datei auf USB/Downloads sichern | nur Download | ✅ MediaStore/USB |
+
+Die App erkennt zur Laufzeit (`IR.native`), ob sie in der APK läuft: dann echte
+Aktionen im Tab **Geräte**; im Browser dort die passenden Skripte/Anleitungen
+(Termux/EtchDroid). Stand v1.0.0: native Brücke + Datei/Share/Reload nativ,
+Capture/Flash delegieren an PCAPdroid/EtchDroid; eigene native Module
+(VpnService-Capture, USB-Flash, nmap) sind der nächste Schritt.
+
 ## Framework: Assistent statt fester Szenarien
 
 Beim Start führt ein **Assistent** durch drei Fragen – ohne Technikwissen – und

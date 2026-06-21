@@ -5,3 +5,9 @@ package-lock.json
 dist/card-*.png
 dist/_walk.html
 dist/release/
+android/app/src/main/assets/www/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+.gradle/
