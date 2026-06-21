@@ -323,6 +323,7 @@ group('KI-Assistent (Request)', function () {
   var body = JSON.parse(req.opts.body);
   ok(body.model === 'claude-opus-4-8', 'Modell uebernommen');
   ok(typeof body.system === 'string' && /SIPROTEC/.test(body.system), 'System-Prompt mit OT/SIPROTEC');
+  ok(body.max_tokens >= 2048, 'max_tokens ausreichend fuer lange Antworten');
   ok(body.messages.length === 1 && body.messages[0].role === 'user', 'Nachricht im Body');
 });
 

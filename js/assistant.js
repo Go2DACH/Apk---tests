@@ -69,7 +69,7 @@
             'anthropic-version': '2023-06-01',
             'anthropic-dangerous-direct-browser-access': 'true'
           },
-          body: JSON.stringify({ model: c.model || DEFAULT_MODEL, max_tokens: 1024, system: SYSTEM, messages: msgs })
+          body: JSON.stringify({ model: c.model || DEFAULT_MODEL, max_tokens: 2048, system: SYSTEM, messages: msgs })
         }
       };
     },
