@@ -15,6 +15,8 @@ while true; do
   5) Geraete anzeigen (lsblk)
   6) IR-Pilot erneut oeffnen
   7) Smartphone-Steuerung starten   (ohne Tastatur, control-server)
+  8) Netz koppeln (DHCP/auto-IP)     (netup.sh)
+  9) Hosts im Netz finden            (discover.sh)
   0) Ende
 M
   read -rp "Auswahl: " a
@@ -27,6 +29,8 @@ M
     6) open_app ;;
     7) echo "Smartphone per USB-Ethernet/WLAN verbinden, dann angezeigte URL+Token im Handy-Browser oeffnen. Strg+C beendet."
        sudo IR_EVIDENCE="${IR_EVIDENCE:-$HERE/../evidence}" python3 "$HERE/control-server.py" ;;
+    8) sudo "$HERE/netup.sh" ;;
+    9) sudo "$HERE/discover.sh" "" "${IR_EVIDENCE:-$HERE/../evidence}" ;;
     0) exit 0 ;;
   esac
 done

@@ -26,8 +26,44 @@ def A_win(a):     return ['sudo', os.path.join(ROOT, 'collect-windows-offline.sh
 def A_lin(a):     return ['sudo', os.path.join(ROOT, 'collect-linux-offline.sh'), a.get('mount', '/mnt/evidence'), EVID]
 def A_manifest(a):return ['bash', os.path.join(APPDIR, 'tools', 'evidence-manifest.sh'), 'create', EVID]
 def A_capture(a): return ['sudo', os.path.join(APPDIR, 'tools', 'ot-capture.sh'), a.get('iface', 'eth1'), EVID, a.get('min', '10')]
+def A_discover(a):return ['sudo', os.path.join(ROOT, 'discover.sh'), a.get('iface', ''), EVID]
+def A_wireshark(a):return ['sudo', os.path.join(ROOT, 'wireshark-capture.sh'), a.get('iface', 'eth1'), EVID, a.get('min', '5'), a.get('filter', '')]
 ACTIONS = {'mount_ro': A_mount, 'image_disk': A_image, 'collect_windows': A_win,
-           'collect_linux': A_lin, 'manifest': A_manifest, 'capture': A_capture}
+           'collect_linux': A_lin, 'manifest': A_manifest, 'capture': A_capture,
+           'discover': A_discover, 'wireshark': A_wireshark}
+
+NAME = os.environ.get('IR_HOST_NAME', '')   # frei vergebbarer Host-Name fuers Dashboard
+
+
+def list_evidence():
+    """Alle gesammelten Dateien unter EVIDENCE -> Liste fuers Smartphone/Dashboard."""
+    items = []
+    for base, _dirs, files in os.walk(EVID):
+        for f in files:
+            full = os.path.join(base, f)
+            try:
+                st = os.stat(full)
+            except OSError:
+                continue
+            items.append({'path': os.path.relpath(full, EVID), 'size': st.st_size,
+                          'mtime': int(st.st_mtime)})
+    items.sort(key=lambda x: x['mtime'], reverse=True)
+    return items
+
+
+def host_info():
+    import socket
+    ips = []
+    try:
+        ips = sorted({i[4][0] for i in socket.getaddrinfo(socket.gethostname(), None)
+                      if ':' not in i[4][0]})
+    except Exception:
+        pass
+    ev = list_evidence()
+    return {'app': 'ir-pilot-control', 'name': NAME or socket.gethostname(),
+            'host': socket.gethostname(), 'ips': ips, 'port': PORT,
+            'evidenceCount': len(ev), 'evidenceBytes': sum(x['size'] for x in ev),
+            'actions': sorted(ACTIONS.keys())}
 
 CONTROL_HTML = """<!doctype html><html lang=de><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
@@ -53,10 +89,13 @@ small{color:#9bb4cc}</style>
  <button onclick="run('collect_linux',{})">Linux offline</button>
  <button onclick="run('manifest',{})">Manifest</button>
 </div></div>
-<div class=card><b>Netzwerk-Capture</b>
+<div class=card><b>Netzwerk: Discover &amp; Mitschnitt (Wireshark/tshark)</b>
 <div class=row><label>Interface</label><input id=if value=eth1 style=width:90px>
- <label>Min</label><input id=mn value=10 style=width:60px>
- <button onclick="run('capture',{iface:if.value,min:mn.value})">Start</button></div></div>
+ <label>Min</label><input id=mn value=5 style=width:60px>
+ <button onclick="run('discover',{iface:if.value})">Hosts finden</button>
+ <button onclick="run('wireshark',{iface:if.value,min:mn.value})">Wireshark-Capture</button>
+ <button onclick="run('capture',{iface:if.value,min:mn.value})">OT-Capture</button></div></div>
+<div class=card><b>Gesammelte Dateien</b> <button onclick=files()>Aktualisieren</button><div id=fl></div></div>
 <div class=card><b>Ausgabe</b><pre id=out>bereit…</pre>
 <small>Beweise unter EVIDENCE. <a id=app target=_blank>» Volle IR-Pilot-App oeffnen</a></small></div>
 </div><script>
@@ -69,8 +108,13 @@ function devs(){fetch('/api/devices?t='+T).then(r=>r.json()).then(j=>{
 }).catch(e=>out('Fehler: '+e));}
 function run(a,args){out('laeuft… '+a);args.t=T;
  fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a,args:args,t:T})})
- .then(r=>r.text()).then(out).catch(e=>out('Fehler: '+e));}
-devs();
+ .then(r=>r.text()).then(function(x){out(x);files();}).catch(e=>out('Fehler: '+e));}
+function files(){fetch('/api/list?t='+T).then(r=>r.json()).then(j=>{
+ var f=document.getElementById('fl');f.innerHTML='';
+ (j.files||[]).forEach(x=>{f.innerHTML+='<div>· <a href="/download?t='+T+'&path='+encodeURIComponent(x.path)+'">'+x.path+'</a> '+(x.size||0)+' B</div>';});
+ if(!(j.files||[]).length)f.innerHTML='<small>noch keine Dateien</small>';
+}).catch(e=>{});}
+devs();files();
 </script></html>"""
 
 
@@ -78,6 +122,10 @@ class H(http.server.BaseHTTPRequestHandler):
     def _send(self, code, body, ctype='text/plain; charset=utf-8'):
         b = body.encode() if isinstance(body, str) else body
         self.send_response(code); self.send_header('Content-Type', ctype)
+        # CORS: die IR-Pilot-App (anderer Host/Pages) darf token-geschuetzt zugreifen.
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
 
     def _auth(self, q):
@@ -86,10 +134,18 @@ class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a):  # leiser
         pass
 
+    def do_OPTIONS(self):       # CORS-Preflight
+        self._send(204, '')
+
     def do_GET(self):
         u = urllib.parse.urlparse(self.path); q = urllib.parse.parse_qs(u.query)
         if u.path in ('/', '/index.html', '/control'):
             return self._send(200, CONTROL_HTML, 'text/html; charset=utf-8')
+        if u.path == '/api/info':
+            # Identitaet/Status fuers App-Pairing; ohne Token nur minimal.
+            if not self._auth(q):
+                return self._send(200, json.dumps({'app': 'ir-pilot-control', 'auth': False}), 'application/json')
+            return self._send(200, json.dumps(host_info()), 'application/json')
         if u.path == '/api/devices':
             if not self._auth(q): return self._send(403, 'token')
             try:
@@ -97,6 +153,9 @@ class H(http.server.BaseHTTPRequestHandler):
                 return self._send(200, o, 'application/json')
             except Exception as e:
                 return self._send(200, json.dumps({'blockdevices': [], 'error': str(e)}), 'application/json')
+        if u.path == '/api/list':
+            if not self._auth(q): return self._send(403, 'token')
+            return self._send(200, json.dumps({'files': list_evidence()}), 'application/json')
         if u.path.startswith('/app/'):
             return self._serve_static(u.path[len('/app/'):])
         if u.path == '/download':
@@ -105,9 +164,28 @@ class H(http.server.BaseHTTPRequestHandler):
         return self._send(404, 'not found')
 
     def do_POST(self):
-        if urllib.parse.urlparse(self.path).path != '/api/run':
-            return self._send(404, 'not found')
+        u = urllib.parse.urlparse(self.path); q = urllib.parse.parse_qs(u.query)
         n = int(self.headers.get('Content-Length', '0'))
+        # Forensik-Daten annehmen (z.B. Windows-Collector -> Smartphone-Host)
+        if u.path == '/api/intake':
+            if not self._auth(q): return self._send(403, 'token')
+            name = os.path.basename(q.get('name', ['intake.bin'])[0]) or 'intake.bin'
+            dest_dir = os.path.join(EVID, 'intake')
+            os.makedirs(dest_dir, exist_ok=True)
+            full = os.path.join(dest_dir, name)
+            try:
+                with open(full, 'wb') as f:
+                    remaining = n
+                    while remaining > 0:
+                        chunk = self.rfile.read(min(65536, remaining))
+                        if not chunk: break
+                        f.write(chunk); remaining -= len(chunk)
+                return self._send(200, json.dumps({'ok': True, 'saved': 'intake/' + name,
+                                  'bytes': os.path.getsize(full)}), 'application/json')
+            except Exception as e:
+                return self._send(500, str(e))
+        if u.path != '/api/run':
+            return self._send(404, 'not found')
         try:
             data = json.loads(self.rfile.read(n) or b'{}')
         except Exception:

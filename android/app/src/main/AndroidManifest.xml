@@ -9,11 +9,13 @@
     <!-- USB-Host (Boot-Stick flashen / USB-Ethernet) -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
+    <!-- Cleartext erlaubt: die Forensik-Hosts (Boot-Sticks/control-server) laufen
+         per HTTP im isolierten Analyse-Netz und sind token-geschuetzt. -->
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="false"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.AppCompat.NoActionBar">
 
         <activity

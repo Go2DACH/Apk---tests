@@ -43,11 +43,15 @@
     });
     if (!c) return root.innerHTML = (state.view === 'wizard' ? viewWizard()
       : state.view === 'native' ? viewNative()
+      : state.view === 'dashboard' ? viewDashboard()
+      : state.view === 'hosts' ? viewHosts()
       : state.view === 'tools' ? viewTools() : viewHome());
     var v = state.view;
     if (v === 'home') root.innerHTML = viewHome();
     else if (v === 'wizard') root.innerHTML = viewWizard();
     else if (v === 'native') root.innerHTML = viewNative();
+    else if (v === 'dashboard') root.innerHTML = viewDashboard();
+    else if (v === 'hosts') root.innerHTML = viewHosts();
     else if (v === 'pb') root.innerHTML = viewPlaybook();
     else if (v === 'evidence') root.innerHTML = viewEvidence();
     else if (v === 'ioc') root.innerHTML = viewIoc();
@@ -63,7 +67,9 @@
       '<p class="muted">Gefuehrter Start: Umgebung &amp; Beobachtung waehlen (ohne Technikwissen), Fragebogen beantworten – das Tool schlaegt eine Vermutung vor und baut das Playbook.</p>' +
       '<button class="bigbtn" data-act="wiz-start">▶ Gefuehrter Start (Assistent)</button>' +
       '<button class="mini" data-act="new" data-id="generic">Generisches Playbook starten</button>' +
-      '<button class="mini" data-act="goto-native">📡 Geraete &amp; Forensik (nativ)</button></section>';
+      '<button class="mini" data-act="goto-native">📡 Geraete &amp; Forensik (nativ)</button>' +
+      '<button class="mini" data-act="goto-hosts">🖧 Forensik-Hosts (bis 10)</button>' +
+      '<button class="mini" data-act="goto-dashboard">📊 Live-Dashboard</button></section>';
     h += '<section class="card"><h2>Schnellstart (Beispiele)</h2><div class="pbgrid">';
     IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).forEach(function (p) {
       h += '<button class="pbcard" data-act="new" data-id="' + p.id + '">' +
@@ -169,6 +175,127 @@
       h += '</section>';
     });
     return h + '<section class="card"><h3>Architektur</h3><p class="muted">Pages/PWA hält Daten &amp; UI · APK macht die Arbeit (Capture/Scan/Flash) · Ergebnisse via „Daten importieren" zurück in den Fall.</p></section>';
+  }
+
+  /* ----------------------------------------------- Forensik-Hosts (bis 10) */
+  function hostData(id) { return (state.hostData || (state.hostData = {}))[id] || (state.hostData[id] = {}); }
+  function fmtBytes(n) { n = +n || 0; if (n < 1024) return n + ' B'; if (n < 1048576) return (n / 1024).toFixed(1) + ' KB'; if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB'; return (n / 1073741824).toFixed(2) + ' GB'; }
+
+  function hostRefresh(id) {
+    var h = IR.hosts.get(id); if (!h) return;
+    var d = hostData(id); d.busy = true; d.err = null;
+    IR.hosts.info(h).then(function (info) { d.info = info; return IR.hosts.files(h); })
+      .then(function (fl) { d.files = (fl && fl.files) || []; d.busy = false; render(); })
+      .catch(function (e) { d.busy = false; d.err = String(e && e.message || e); render(); });
+    render();
+  }
+  function hostAction(id, action, args, label) {
+    var h = IR.hosts.get(id); if (!h) return;
+    var d = hostData(id); d.out = '▶ ' + (label || action) + ' …'; render();
+    IR.hosts.run(h, action, args).then(function (out) {
+      d.out = (typeof out === 'string') ? out : JSON.stringify(out);
+      IR.hosts.files(h).then(function (fl) { d.files = (fl && fl.files) || []; render(); });
+      render();
+    }).catch(function (e) { d.out = 'Fehler: ' + (e && e.message || e); render(); });
+  }
+
+  function viewHosts() {
+    var list = IR.hosts.list();
+    var h = '<section class="card"><div class="row"><h2>🖧 Forensik-Hosts</h2>' +
+      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      '<p class="muted">Bis zu ' + IR.hosts.MAX + ' gesicherte Forensik-Sticks fernsteuern. Jeder Host = ein Boot-Stick mit <code>control-server.py</code>. Adresse + Token werden beim Start auf der Stick-Konsole angezeigt. Alle gesammelten Dateien laufen hier zusammen.</p>';
+    if (list.length < IR.hosts.MAX) {
+      h += '<div class="hostadd"><div class="row"><input id="hLabel" placeholder="Name (z.B. Kasse-PC)"></div>' +
+        '<div class="row"><input id="hBase" placeholder="IP:Port (z.B. 10.13.37.1:8080)"></div>' +
+        '<div class="row"><input id="hToken" placeholder="Token"></div>' +
+        '<button class="mini" data-act="host-add">+ Host hinzufuegen</button></div>';
+    } else h += '<small class="warn">Maximum von ' + IR.hosts.MAX + ' Hosts erreicht.</small>';
+    h += '<small class="muted">Verbunden: ' + list.length + '/' + IR.hosts.MAX + '</small></section>';
+
+    list.forEach(function (host) {
+      var d = hostData(host.id), info = d.info, online = info && info.evidenceCount != null;
+      h += '<section class="card hostcard"><div class="row"><strong>' + U.esc(host.label) + '</strong>' +
+        '<span class="badge">' + (d.busy ? '…' : (d.err ? 'offline' : (online ? 'online' : 'unverbunden'))) + '</span></div>' +
+        '<small class="muted"><code>' + U.esc(host.base) + '</code>' + (online ? ' · ' + info.evidenceCount + ' Dateien · ' + fmtBytes(info.evidenceBytes) : '') + '</small>';
+      if (d.err) h += '<small class="warn">' + U.esc(d.err) + ' – Adresse/Token pruefen, Handy &amp; Stick im selben Netz?</small>';
+      h += '<div class="row"><button class="mini" data-act="host-refresh" data-id="' + host.id + '">Verbinden/Aktualisieren</button>' +
+        '<button class="icon" data-act="host-del" data-id="' + host.id + '" title="entfernen">✕</button></div>';
+      // One-Click-Forensik
+      h += '<div class="row"><input data-hdev="' + host.id + '" placeholder="/dev/sdb (fuer Image)" style="flex:1"></div>' +
+        '<div class="row wrap">' +
+        '<button class="mini" data-act="host-run" data-id="' + host.id + '" data-a="discover">Hosts finden</button>' +
+        '<button class="mini" data-act="host-run" data-id="' + host.id + '" data-a="wireshark">Wireshark</button>' +
+        '<button class="mini" data-act="host-run" data-id="' + host.id + '" data-a="image_disk">Image</button>' +
+        '<button class="mini" data-act="host-run" data-id="' + host.id + '" data-a="collect_windows">Win-Triage</button>' +
+        '<button class="mini" data-act="host-run" data-id="' + host.id + '" data-a="collect_linux">Linux-Triage</button>' +
+        '<button class="mini" data-act="host-run" data-id="' + host.id + '" data-a="manifest">Manifest</button></div>';
+      if (d.files && d.files.length) {
+        h += '<details open><summary>' + d.files.length + ' Datei(en)</summary>';
+        d.files.slice(0, 30).forEach(function (f) {
+          h += '<div class="row"><a class="link" href="' + IR.hosts.downloadUrl(host, f.path) + '" target="_blank">' + U.esc(f.path) + '</a><small>' + fmtBytes(f.size) + '</small></div>';
+        });
+        h += '</details>';
+      }
+      if (d.out) h += '<pre class="code">' + U.esc(d.out.slice(-4000)) + '</pre>';
+      h += '</section>';
+    });
+    return h;
+  }
+
+  /* ----------------------------------------------------- Live-Dashboard */
+  function viewDashboard() {
+    var cases = IR.store.list(), hosts = IR.hosts.list();
+    var h = '<section class="card"><div class="row"><h2>📊 Live-Dashboard</h2>' +
+      '<button class="mini" data-act="goto-home">‹ Start</button>' +
+      '<button class="mini" data-act="dash-refresh">Alle Hosts aktualisieren</button></div>' +
+      '<p class="muted">Laufende Vorfaelle &amp; verbundene Forensik-Hosts auf einen Blick. Dateien werden nach PIN-Eingabe zum Download freigeschaltet.</p></section>';
+
+    h += '<section class="card"><h3>Aktive Incidents (' + cases.length + ')</h3>';
+    if (!cases.length) h += '<p class="muted">Keine offenen Faelle.</p>';
+    cases.slice().reverse().forEach(function (x) {
+      var pb = IR.Case.playbook(x), pr = pb ? IR.engine.progress(pb, x) : { pct: 0, done: 0, total: 0 };
+      var st = (x.flags && x.flags.status) || 'offen';
+      h += '<div class="row caseitem"><button class="link" data-act="open" data-id="' + x.id + '"><strong>' + U.esc(x.title) + '</strong>' +
+        '<small>' + U.esc(x.org || '') + ' · ' + U.esc(st) + ' · ' + pr.done + '/' + pr.total + ' (' + pr.pct + ' %)</small></button></div>';
+    });
+    h += '</section>';
+
+    var totFiles = 0, totBytes = 0;
+    h += '<section class="card"><h3>Forensik-Hosts (' + hosts.length + '/' + IR.hosts.MAX + ')</h3>';
+    if (!hosts.length) h += '<p class="muted">Keine Hosts. Unter „Forensik-Hosts" hinzufuegen.</p>';
+    hosts.forEach(function (host) {
+      var d = hostData(host.id), info = d.info, online = info && info.evidenceCount != null;
+      if (online) { totFiles += info.evidenceCount; totBytes += info.evidenceBytes || 0; }
+      h += '<div class="row caseitem"><span><strong>' + U.esc(host.label) + '</strong>' +
+        '<small><code>' + U.esc(host.base) + '</code> · ' + (d.busy ? '…' : d.err ? 'offline' : online ? info.evidenceCount + ' Dateien · ' + fmtBytes(info.evidenceBytes) : 'unverbunden') + '</small></span></div>';
+    });
+    h += '</section>';
+
+    // PIN-Gate fuer Datei-Download (alle Hosts)
+    h += '<section class="card"><h3>Alle Beweis-Dateien (' + totFiles + ' · ' + fmtBytes(totBytes) + ')</h3>';
+    if (!state.dashUnlocked) {
+      h += '<p class="muted">Zum Herunterladen aller gesammelten Dateien PIN eingeben.</p>' +
+        '<div class="row"><input id="dashPin" type="password" inputmode="numeric" placeholder="PIN" style="width:120px">' +
+        '<button class="mini" data-act="dash-unlock">Entsperren</button></div>';
+      if (state.dashPinErr) h += '<small class="warn">Falsche PIN.</small>';
+    } else {
+      h += '<small class="muted">Entsperrt. ' +
+        '<button class="mini" data-act="dash-lock">Sperren</button></small>';
+      var any = false;
+      hosts.forEach(function (host) {
+        var d = hostData(host.id);
+        if (!d.files || !d.files.length) return;
+        any = true;
+        h += '<div class="hfiles"><strong>' + U.esc(host.label) + '</strong>';
+        d.files.forEach(function (f) {
+          h += '<div class="row"><a class="link" href="' + IR.hosts.downloadUrl(host, f.path) + '" target="_blank">' + U.esc(f.path) + '</a><small>' + fmtBytes(f.size) + '</small></div>';
+        });
+        h += '</div>';
+      });
+      if (!any) h += '<p class="muted">Noch keine Dateien – Hosts aktualisieren oder Aktionen starten.</p>';
+    }
+    h += '</section>';
+    return h;
   }
 
   function viewPlaybook() {
@@ -325,7 +452,37 @@
     if (act === 'wiz-generate') { return wizGenerate(); }
     if (act === 'tool-open') { go('tools'); setTimeout(function () { var el = document.getElementById('tool-' + id); if (el) el.scrollIntoView(); }, 50); return; }
     if (act === 'goto-native') { state.view = 'native'; return render(); }
+    if (act === 'goto-hosts') { state.view = 'hosts'; return render(); }
+    if (act === 'goto-dashboard') { state.view = 'dashboard'; IR.hosts.list().forEach(function (host) { if (!hostData(host.id).info) hostRefresh(host.id); }); return render(); }
     if (act === 'goto-home') { state.caseId = null; c = null; state.view = 'home'; return render(); }
+    // ---- Forensik-Hosts ----
+    if (act === 'host-add') {
+      try {
+        IR.hosts.add({ label: ($('#hLabel') || {}).value, base: ($('#hBase') || {}).value, token: ($('#hToken') || {}).value });
+        toast('Host hinzugefuegt'); render();
+      } catch (err) { toast(err.message || 'Fehler'); }
+      return;
+    }
+    if (act === 'host-del') { if (confirm('Host entfernen?')) { IR.hosts.remove(id); render(); } return; }
+    if (act === 'host-refresh') { hostRefresh(id); return; }
+    if (act === 'host-run') {
+      var a = b.dataset.a, args = {};
+      if (a === 'image_disk') {
+        var dv = (document.querySelector('[data-hdev="' + id + '"]') || {}).value;
+        if (!dv) { toast('Geraet angeben (z.B. /dev/sdb)'); return; }
+        args = { dev: dv, fmt: 'ewf' };
+      } else if (a === 'wireshark') { args = { iface: 'eth1', min: '5' }; }
+      var labels = { discover: 'Hosts finden', wireshark: 'Wireshark', image_disk: 'Image', collect_windows: 'Win-Triage', collect_linux: 'Linux-Triage', manifest: 'Manifest' };
+      hostAction(id, a, args, labels[a]); return;
+    }
+    if (act === 'dash-refresh') { IR.hosts.list().forEach(function (host) { hostRefresh(host.id); }); return; }
+    if (act === 'dash-unlock') {
+      var pin = ($('#dashPin') || {}).value;
+      if (pin === IR.hosts.DASH_PIN) { state.dashUnlocked = true; state.dashPinErr = false; IR.hosts.list().forEach(function (host) { hostRefresh(host.id); }); }
+      else { state.dashPinErr = true; }
+      return render();
+    }
+    if (act === 'dash-lock') { state.dashUnlocked = false; return render(); }
     if (act === 'native-run') { if (!IR.native.run(id)) toast('Nur in der APK nativ verfuegbar'); return; }
     if (act === 'native-reload') { IR.native.reloadData(); return; }
     if (act === 'new') {

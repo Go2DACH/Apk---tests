@@ -91,6 +91,10 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
 .bigbtn{display:block;width:100%;background:var(--acc);color:#04243f;border:0;border-radius:10px;
   padding:13px;font-size:15px;font-weight:800;margin:6px 0}
 .bigbtn:disabled{opacity:.4}
+.hostcard .row.wrap{gap:6px}
+.hostadd{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+.hfiles{border-top:1px solid var(--line);padding-top:6px;margin-top:6px}
+.hfiles .row,.hostcard details .row{margin:2px 0;justify-content:space-between}
 .wizsteps{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
 .wizsteps span{padding:4px 8px;border-radius:12px;background:#0a233b;border:1px solid var(--line);color:var(--muted)}
 .wizsteps span.on{background:var(--acc);color:#04243f;font-weight:700;border-color:var(--acc)}

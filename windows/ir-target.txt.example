@@ -1,0 +1,6 @@
+# IR-Pilot Windows-Sammler – Ziel-Host (Smartphone/Boot-Stick control-server).
+# Diese Datei nach "ir-target.txt" kopieren und Werte eintragen.
+# Adresse + Token zeigt der Boot-Stick beim Start auf der Konsole / im autorun-Menue.
+
+base = http://10.13.37.50:8080
+token = DEIN_TOKEN_HIER

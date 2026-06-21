@@ -95,6 +95,30 @@ function run() {
     ok(d.querySelectorAll('.nativecap').length >= 4, 'Geraete-Ansicht zeigt Faehigkeiten');
     ok(/Browser/.test(d.querySelector('#app').innerHTML), 'zeigt Plattform/Fallback (Browser)');
 
+    // ---- Forensik-Hosts: hinzufuegen (bis 10) ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="goto-hosts"]').click();
+    ok(/Forensik-Hosts/.test(d.querySelector('#app').innerHTML), 'Hosts-Ansicht');
+    d.querySelector('#hLabel').value = 'Kasse-PC';
+    d.querySelector('#hBase').value = '10.13.37.1:8080';
+    d.querySelector('#hToken').value = 'tok123';
+    d.querySelector('[data-act="host-add"]').click();
+    ok(d.querySelectorAll('.hostcard').length === 1 && /10\.13\.37\.1:8080/.test(d.querySelector('#app').innerHTML), 'Host erscheint in Liste');
+    ok(IR.hosts.list().length === 1, 'Host persistiert');
+
+    // ---- Live-Dashboard: PIN-Gate (1374) ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="goto-dashboard"]').click();
+    ok(/Live-Dashboard/.test(d.querySelector('#app').innerHTML), 'Dashboard-Ansicht');
+    ok(!!d.querySelector('#dashPin'), 'Dateien zunaechst PIN-gesperrt');
+    d.querySelector('#dashPin').value = '0000';
+    d.querySelector('[data-act="dash-unlock"]').click();
+    ok(/Falsche PIN/.test(d.querySelector('#app').innerHTML), 'falsche PIN abgewiesen');
+    d.querySelector('#dashPin').value = '1374';
+    d.querySelector('[data-act="dash-unlock"]').click();
+    ok(!d.querySelector('#dashPin') && /Sperren/.test(d.querySelector('#app').innerHTML), 'PIN 1374 entsperrt Downloads');
+    IR.hosts.list().slice().forEach(function (h) { IR.hosts.remove(h.id); });
+
     console.log('\nUI: ' + passes + ' ok, ' + fails + ' fail');
     process.exit(fails ? 1 : 0);
   } catch (e) {

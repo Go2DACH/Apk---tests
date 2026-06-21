@@ -162,6 +162,38 @@ booten und per **USB-Ethernet/WLAN** vom Handy fernsteuern (`control-server.py`)
 Handy-als-USB-Tastatur (HID-Gadget) braucht **Root am Handy** und ist daher nicht
 der Standardweg — die ehrliche Abwägung steht in `mobile/hid-keyboard.md`.
 
+## Mehrere Forensik-Hosts, Live-Dashboard & Windows-Sammler
+
+Der Boot-Stick bringt **Wireshark/tshark, nmap, arp-scan** u. v. m. mit; alle
+gesammelten Daten laufen am **Smartphone** zusammen und sind **aus der App
+fernsteuerbar**.
+
+- **One-Click vom Handy** (`control-server.py` → `/api/run`, Whitelist):
+  `discover.sh` (Hosts finden), `wireshark-capture.sh` (tshark/pcapng + Statistik),
+  `image-disk.sh`, Windows-/Linux-Offline-Triage, `evidence-manifest.sh`. Ergebnis
+  landet in `EVIDENCE`, ist über `/api/list` sichtbar und über `/download` abrufbar.
+- **Auto-Kopplung ohne DHCP** (`desktop/netup.sh`, Dienst `ir-net.service`):
+  versucht DHCP; klappt das nicht, vergibt der Stick sich `10.13.37.1/24` und
+  startet einen **Mini-DHCP** (dnsmasq), sodass das Smartphone **automatisch** eine
+  IP bekommt — Stick und Handy koppeln sich selbst. Fallback: Link-Local (169.254.x).
+- **Bis zu 10 Forensik-Hosts in der App** (`js/hosts.js`, Ansicht „🖧 Forensik-Hosts"):
+  je Host Adresse + Token hinterlegen, dann Status/Datenträger/Dateien abrufen und
+  die One-Click-Aktionen auslösen. Token-geschützt; der Control-Server sendet
+  CORS-Header, die APK erlaubt Cleartext zu lokalen Hosts.
+- **Windows-Sammler auf dem Stick** (`windows/IR-Collect.cmd` + `ir-collect.ps1`):
+  doppelklickbares, **read-only** Live-Triage-Programm (systeminfo, netstat,
+  tasklist, schtasks, autoruns, DNS-Cache, Security-Events, etablierte
+  Verbindungen → IOCs). Packt + **SHA256**, lädt automatisch an den Host
+  (`/api/intake`) → erscheint im Dashboard, optional weiter in die Cloud.
+- **Live-Dashboard** (Ansicht „📊 Live-Dashboard"): aktive Incidents + verbundene
+  Hosts (Dateizahl/Größe) auf einen Blick. Der Download **aller** gesammelten
+  Dateien ist per **PIN 1374** geschützt.
+
+> Architektur-Hinweis (ehrlich): GitHub Pages ist statisch und kann keine Uploads
+> annehmen. „Reporting zurück in die App" heißt deshalb: das **Dashboard in der
+> App** aggregiert live von den verbundenen Hosts (Boot-Sticks). Der Host ist die
+> Sammelstelle; „Cloud" ist das Weiterreichen der dort liegenden Dateien.
+
 ### Bootbares Forensik-Linux — `build/`
 - `build-live-iso.sh` — baut mit **Debian live-build** ein bootbares Forensik-Linux
   **inkl. gparted** und der Tools aus `build/packages.list` (testdisk, ddrescue,
@@ -197,14 +229,16 @@ npm test          # Logik (run.js) + UI-Smoke (ui.js) + Control-Server (control-
 index.html              App-Shell
 css/app.css             Mobile-first UI (dunkel)
 js/core.js              Namespace, Case-Modell, Engine, Persistenz
+js/hosts.js             Forensik-Hosts (bis 10 Boot-Sticks fernsteuern)
 js/report.js            Incident-Report + Lagebericht
-js/app.js               UI-Controller (Vanilla JS)
+js/app.js               UI-Controller (Vanilla JS) + Hosts/Dashboard
 data/playbooks.js       9 Fälle + generischer Lifecycle
 data/comms.js           Krisenkommunikation + Meldepflichten
 data/toolkit.js         Forensik-Skripte (Quelle)
 tools/                  materialisierte Triage-Skripte
 mobile/                 Smartphone-Skripte (Termux) + hid-keyboard.md (no-root/Tastatur)
-desktop/                Offline-Collection vom Live-USB + control-server.py
+desktop/                Offline-Collection + control-server.py, netup.sh, discover.sh, wireshark-capture.sh
+windows/                Windows-Sammler (IR-Collect.cmd/ir-collect.ps1) fuer den USB-Stick
 build/                  Live-ISO-Builder, Toolkit-USB, Einsatzkarten/Screenshots
 dist/                   erzeugte PDFs/Screenshots
 manifest.webmanifest    PWA-Manifest

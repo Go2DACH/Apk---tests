@@ -2,6 +2,7 @@
 'use strict';
 require('../js/core.js');
 require('../js/native.js');
+require('../js/hosts.js');
 require('../data/catalog.js');
 require('../data/comms.js');
 require('../data/toolkit.js');
@@ -267,6 +268,29 @@ group('Native-Schicht (Browser-Fallback)', function () {
   ok(IR.native.run('capture') === true && called.cap === 1, 'native Capture ausgefuehrt');
   delete globalThis.AndroidIR;
   delete require.cache[require.resolve('../js/native.js')]; require('../js/native.js');
+});
+
+group('Forensik-Hosts (bis 10)', function () {
+  var H = IR.hosts;
+  ok(H && H.MAX === 10, 'Maximum 10 Hosts');
+  ok(H.DASH_PIN === '1374', 'Dashboard-PIN = 1374');
+  H.list().slice().forEach(function (h) { H.remove(h.id); });
+  ok(H.list().length === 0, 'Start ohne Hosts');
+  var a = H.add({ label: 'Kasse', base: '10.13.37.1:8080', token: 'abc' });
+  ok(a.id && a.base === 'http://10.13.37.1:8080', 'Adresse normalisiert (http, ohne Slash)');
+  ok(H.get(a.id).label === 'Kasse', 'Host abrufbar');
+  H.update(a.id, { token: 'xyz', label: 'Kasse-PC' });
+  ok(H.get(a.id).token === 'xyz' && H.get(a.id).label === 'Kasse-PC', 'Host aktualisiert');
+  ok(H.downloadUrl(a, 'intake/x.zip').indexOf('t=xyz') >= 0 && H.downloadUrl(a, 'intake/x.zip').indexOf('path=intake') >= 0, 'Download-URL mit Token+Pfad');
+  ok(H.intakeUrl(a, 'r.json').indexOf('/api/intake?') >= 0, 'Intake-URL gebaut');
+  var thrown = false; try { H.add({ base: '' }); } catch (e) { thrown = true; }
+  ok(thrown, 'leere Adresse abgelehnt');
+  for (var i = 0; i < 9; i++) H.add({ base: '10.0.0.' + i + ':8080', token: 't' });
+  ok(H.list().length === 10, '10 Hosts moeglich');
+  var capped = false; try { H.add({ base: '10.0.0.99:8080' }); } catch (e) { capped = true; }
+  ok(capped, '11. Host abgelehnt (Cap 10)');
+  H.list().slice().forEach(function (h) { H.remove(h.id); });
+  ok(H.list().length === 0, 'aufgeraeumt');
 });
 
 console.log('\n' + passes + ' ok, ' + fails + ' fail');

@@ -28,7 +28,7 @@ grep -vE '^\s*#|^\s*$' "$ROOT/build/packages.list" > config/package-lists/forens
 
 # App + Skripte in das Image legen (/opt/ir-pilot)
 mkdir -p config/includes.chroot/opt/ir-pilot
-for d in index.html sw.js manifest.webmanifest css js data tools mobile desktop assets README.md; do
+for d in index.html sw.js manifest.webmanifest css js data tools mobile desktop windows assets README.md; do
   [ -e "$ROOT/$d" ] && cp -a "$ROOT/$d" config/includes.chroot/opt/ir-pilot/
 done
 
@@ -42,12 +42,29 @@ Exec=bash -c 'xdg-open /opt/ir-pilot/index.html'
 X-GNOME-Autostart-enabled=true
 EOF
 
-# Smartphone-Steuerung: Control-Server als systemd-Dienst (headless, ohne Tastatur)
+# Auto-Kopplung Smartphone <-> Stick (DHCP probieren, sonst eigene IP + Mini-DHCP)
 mkdir -p config/includes.chroot/etc/systemd/system
+cat > config/includes.chroot/etc/systemd/system/ir-net.service <<'EOF'
+[Unit]
+Description=IR-Pilot Auto-Netz (Smartphone/Stick koppeln, DHCP-or-static)
+After=network.target
+Before=ir-control.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash /opt/ir-pilot/desktop/netup.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Smartphone-Steuerung: Control-Server als systemd-Dienst (headless, ohne Tastatur)
 cat > config/includes.chroot/etc/systemd/system/ir-control.service <<'EOF'
 [Unit]
 Description=IR-Pilot Control-Server (Boot-Stick vom Smartphone steuern)
-After=network.target
+After=network.target ir-net.service
+Wants=ir-net.service
 
 [Service]
 Type=simple
@@ -72,7 +89,8 @@ systemctl disable udisks2 2>/dev/null || true
 echo 'vm.swappiness=0' >> /etc/sysctl.conf
 ln -sf /opt/ir-pilot/desktop/autorun.sh /usr/local/bin/ir-desktop 2>/dev/null || true
 chmod +x /opt/ir-pilot/desktop/*.sh /opt/ir-pilot/desktop/*.py /opt/ir-pilot/mobile/*.sh /opt/ir-pilot/tools/*.sh 2>/dev/null || true
-# Control-Server-Dienst aktivieren (Smartphone-Fernsteuerung ohne Tastatur)
+# Auto-Netz + Control-Server-Dienst aktivieren (Smartphone-Fernsteuerung ohne Tastatur)
+systemctl enable ir-net.service 2>/dev/null || true
 systemctl enable ir-control.service 2>/dev/null || true
 # CyberChef offline mit ins Image holen (best effort, Internet im Build noetig)
 bash /opt/ir-pilot/tools/fetch-cyberchef.sh /opt/ir-pilot/tools/cyberchef 2>/dev/null || true

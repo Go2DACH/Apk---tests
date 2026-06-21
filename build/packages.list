@@ -57,6 +57,10 @@ curl
 wget
 openssh-client
 socat
+# Auto-Kopplung Smartphone <-> Stick (DHCP-Server / Link-Local, kein DHCP noetig)
+dnsmasq-base
+avahi-autoipd
+isc-dhcp-client
 
 # --- Sonstiges ---
 git

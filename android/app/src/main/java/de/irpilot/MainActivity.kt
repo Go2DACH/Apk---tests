@@ -29,6 +29,10 @@ class MainActivity : AppCompatActivity() {
             cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = false
             allowFileAccess = true
+            // Forensik-Hosts (Boot-Sticks) laufen lokal per HTTP im isolierten
+            // Analyse-Netz. Die token-geschuetzte App muss diese Cleartext-Hosts
+            // erreichen, auch wenn sie selbst von file:///https geladen ist.
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
         web.webViewClient = WebViewClient()
         web.webChromeClient = WebChromeClient()
