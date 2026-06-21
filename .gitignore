@@ -17,3 +17,4 @@ _deliver/
 dist/ir-pilot-kit.zip
 dist/ir-pilot-kit.zip.sha256
 dist/_kit/
+*.apk
