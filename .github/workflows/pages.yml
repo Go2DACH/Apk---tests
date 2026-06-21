@@ -45,6 +45,21 @@ jobs:
           bash build/make-kit.sh           # Werkzeug-Kit als Download bereitstellen
           cp dist/ir-pilot-kit.zip _site/ir-pilot-kit.zip
 
+      - name: Neueste APK als direkten Download beilegen (best effort)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          RUN=$(gh run list --workflow "Build Android APK" --branch claude/fresh-start-v9zow4 \
+                --json databaseId,conclusion -q '[.[]|select(.conclusion=="success")][0].databaseId' 2>/dev/null || echo "")
+          if [ -n "$RUN" ]; then
+            gh run download "$RUN" -n IR-Pilot-APK -D _apk 2>/dev/null || true
+            if [ -f _apk/app-release.apk ]; then
+              cp _apk/app-release.apk _site/IR-Pilot.apk
+              echo "[+] APK beigelegt: _site/IR-Pilot.apk"
+            else echo "[i] kein APK-Artefakt – ueberspringe"; fi
+          else echo "[i] kein erfolgreicher APK-Build gefunden – ueberspringe"; fi
+
       - name: Publish to gh-pages branch
         run: |
           cd _site
