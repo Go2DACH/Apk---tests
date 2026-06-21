@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1f33">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<title>IR-Pilot – Live-Dashboard</title>
+<style>
+:root{--bg:#0b1f33;--card:#12304f;--line:#1d496f;--txt:#e8f0f8;--muted:#9bb4cc;--acc:#3aa0ff;--ok:#3ad29f;--high:#ff8a5c;--crit:#ff5c7a}
+*{box-sizing:border-box}body{font:15px system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--txt)}
+header{padding:12px 14px;background:#0e2740;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+header strong{font-size:16px}.wrap{max-width:860px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+h2{margin:.1em 0 .3em;font-size:16px}h3{margin:.1em 0;font-size:14px}
+.muted{color:var(--muted)}small{color:var(--muted)}
+button{background:var(--acc);color:#04243f;border:0;border-radius:8px;padding:9px 13px;font-weight:700;cursor:pointer}
+input{background:#0a233b;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:9px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0;justify-content:space-between}
+.inc{border-top:1px solid var(--line);padding:8px 0}.inc:first-child{border-top:0}
+.badge{font-size:11px;background:#0a233b;border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:2px 8px}
+.bar{height:7px;background:#0a233b;border-radius:6px;overflow:hidden;margin-top:5px}.bar>div{height:100%;background:var(--acc)}
+.sev-kritisch{color:var(--crit)}.sev-hoch{color:var(--high)}.sev-mittel{color:var(--ok)}
+a{color:var(--acc)}pre{white-space:pre-wrap;background:#06182a;border:1px solid var(--line);border-radius:8px;padding:10px;max-height:50vh;overflow:auto;font-size:12px}
+.warn{color:var(--high)}.locked{opacity:.7}
+</style>
+</head>
+<body>
+<header>
+  <strong>🛡️ IR-Pilot · Live-Dashboard</strong>
+  <span class="badge" id="src">lokal</span>
+  <span style="flex:1"></span>
+  <button id="reload">Aktualisieren</button>
+</header>
+<div class="wrap" id="app"><div class="card">Lade…</div></div>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var qs = new URLSearchParams(location.search);
+  // Quelle: ?repo=owner/name liest ein anderes Daten-Repo via raw; sonst relativ (Pages, gleiches Repo).
+  var repo = qs.get('repo');
+  var DIR = 'cloud/incidents';
+  function indexUrl() {
+    if (repo) { var p = repo.split('/'); return 'https://raw.githubusercontent.com/' + p[0] + '/' + p[1] + '/' + (qs.get('branch') || 'main') + '/' + DIR + '/index.json?_=' + Date.now(); }
+    return './' + DIR + '/index.json?_=' + Date.now();
+  }
+  function incUrl(id) {
+    if (repo) { var p = repo.split('/'); return 'https://raw.githubusercontent.com/' + p[0] + '/' + p[1] + '/' + (qs.get('branch') || 'main') + '/' + DIR + '/' + id + '.json?_=' + Date.now(); }
+    return './' + DIR + '/' + id + '.json?_=' + Date.now();
+  }
+  $('#src').textContent = repo ? repo : 'dieses Repo';
+
+  var PIN = '1374';
+  var state = { idx: null, err: null, unlocked: false, pinErr: false, open: {}, detail: {} };
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function sevClass(s) { return s === 'kritisch' ? 'sev-kritisch' : s === 'hoch' ? 'sev-hoch' : 'sev-mittel'; }
+  function fmtBytes(n) { n = +n || 0; if (n < 1024) return n + ' B'; if (n < 1048576) return (n / 1024).toFixed(1) + ' KB'; if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB'; return (n / 1073741824).toFixed(2) + ' GB'; }
+
+  function load() {
+    state.err = null; render();
+    fetch(indexUrl()).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) { state.idx = j && j.incidents ? j : { incidents: [] }; render(); })
+      .catch(function (e) { state.err = String(e.message || e); state.idx = { incidents: [] }; render(); });
+  }
+
+  function loadDetail(id) {
+    if (state.detail[id]) return render();
+    fetch(incUrl(id)).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { state.detail[id] = j || { files: [], report: '' }; render(); })
+      .catch(function () { state.detail[id] = { files: [], report: '' }; render(); });
+  }
+
+  function render() {
+    var idx = state.idx, h = '';
+    if (!idx) { $('#app').innerHTML = '<div class="card">Lade…</div>'; return; }
+    var inc = (idx.incidents || []).slice().sort(function (a, b) { return (b.updated || '').localeCompare(a.updated || ''); });
+
+    h += '<section class="card"><div class="row"><h2>Aktive Incidents (' + inc.length + ')</h2>' +
+      '<small>' + (idx.updated ? 'Stand: ' + esc(idx.updated) : '') + '</small></div>';
+    if (state.err) {
+      h += '<p class="warn">Keine Cloud-Daten gefunden (' + esc(state.err) + '). Sobald die App einen Vorfall veroeffentlicht, erscheint er hier.</p>';
+      if (location.protocol === 'file:') h += '<p class="warn">Hinweis: Als lokale Datei (file://) kann der Browser index.json nicht laden. Oeffne das Dashboard ueber GitHub Pages (https) oder den Boot-Stick (http, /app/dashboard.html).</p>';
+    }
+    if (!inc.length && !state.err) h += '<p class="muted">Noch keine veroeffentlichten Vorfaelle.</p>';
+    inc.forEach(function (e) {
+      var open = !!state.open[e.id];
+      h += '<div class="inc"><div class="row"><span><strong>' + esc(e.title) + '</strong> ' +
+        '<small>' + esc(e.org || '') + '</small></span>' +
+        '<span class="badge ' + sevClass(e.severity) + '">' + esc(e.severity || '–') + '</span></div>' +
+        '<div class="row"><small>Status: ' + esc(e.status || 'offen') + (e.phase ? ' · Phase: ' + esc(e.phase) : '') + ' · ' + (e.done || 0) + '/' + (e.total || 0) + ' Massnahmen · ' + (e.files || 0) + ' Datei(en)</small>' +
+        '<button data-open="' + esc(e.id) + '">' + (open ? 'Details ▲' : 'Details ▼') + '</button></div>' +
+        '<div class="bar"><div style="width:' + (e.progress || 0) + '%"></div></div>';
+      if (open) h += renderDetail(e.id);
+      h += '</div>';
+    });
+    h += '</section>';
+
+    // Datei-/Report-Zugriff per PIN
+    h += '<section class="card"><h3>Beweise &amp; Reports</h3>';
+    if (!state.unlocked) {
+      h += '<p class="muted">Zum Anzeigen von Dateien &amp; Reports PIN eingeben.</p>' +
+        '<div class="row" style="justify-content:flex-start"><input id="pin" type="password" inputmode="numeric" placeholder="PIN" style="width:120px"><button id="unlock">Entsperren</button></div>';
+      if (state.pinErr) h += '<small class="warn">Falsche PIN.</small>';
+    } else {
+      h += '<small class="muted">Entsperrt – Details/Downloads unter „Details" je Vorfall sichtbar. <button id="lock">Sperren</button></small>';
+    }
+    h += '</section>';
+    $('#app').innerHTML = h;
+    bind();
+  }
+
+  function renderDetail(id) {
+    if (!state.unlocked) return '<p class="muted locked">🔒 Details/Dateien nach PIN-Eingabe sichtbar.</p>';
+    var d = state.detail[id];
+    if (!d) { loadDetail(id); return '<p class="muted">Lade Details…</p>'; }
+    var h = '';
+    if (d.files && d.files.length) {
+      h += '<small>Dateien (auf den Forensik-Hosts gespeichert):</small>';
+      d.files.forEach(function (f) {
+        var label = f.path || f.name || '(Datei)';
+        h += '<div class="row" style="justify-content:flex-start;gap:6px">· ' +
+          (f.url ? '<a href="' + esc(f.url) + '" target="_blank">' + esc(label) + '</a>' : esc(label)) +
+          ' <small>' + fmtBytes(f.size) + (f.host ? ' · ' + esc(f.host) : '') + '</small></div>';
+      });
+    } else h += '<small class="muted">Keine Datei-Verweise im Snapshot.</small>';
+    if (d.report) h += '<details><summary>Incident-Report</summary><pre>' + esc(d.report) + '</pre></details>';
+    return h;
+  }
+
+  function bind() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-open]'), function (b) {
+      b.onclick = function () { var id = b.getAttribute('data-open'); state.open[id] = !state.open[id]; if (state.open[id] && state.unlocked) loadDetail(id); render(); };
+    });
+    if ($('#unlock')) $('#unlock').onclick = function () {
+      var v = ($('#pin') || {}).value;
+      if (v === PIN) { state.unlocked = true; state.pinErr = false; Object.keys(state.open).forEach(function (id) { if (state.open[id]) loadDetail(id); }); }
+      else state.pinErr = true;
+      render();
+    };
+    if ($('#lock')) $('#lock').onclick = function () { state.unlocked = false; render(); };
+  }
+
+  $('#reload').onclick = load;
+  load();
+  window.__IRDASH = { state: state, load: load, render: render };  // fuer Tests
+})();
+</script>
+</body>
+</html>

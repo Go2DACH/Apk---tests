@@ -1,0 +1,12 @@
+; IR-Pilot – Best-Effort-Autostart fuer den USB-Stick.
+; WICHTIG: Moderne Windows-Versionen (ab Win7) fuehren autorun.inf von USB-
+; Laufwerken aus Sicherheitsgruenden NICHT automatisch aus. Diese Datei setzt nur
+; Label/Icon und bietet im AutoPlay-Dialog einen Eintrag an – ein echter
+; Auto-Start ohne Klick ist auf Stock-Windows nicht moeglich (siehe README.md).
+[autorun]
+label=IR-Pilot Forensik
+icon=IR-Collect.cmd,0
+action=IR-Pilot: Windows-Triage sammeln und ans Smartphone senden
+open=IR-Collect.cmd
+shell\ircollect=IR-Pilot Forensik-Sammler starten
+shell\ircollect\command=IR-Collect.cmd

@@ -1,0 +1,309 @@
+/* IR-Pilot – Kern: Namespace, Utilities, Fall-Datenmodell (Case), Persistenz.
+ * Laeuft im Browser (script-Tag) und in Node (require) – haengt sich an globalThis.IR.
+ * Bewusst ohne Build-Schritt/Abhaengigkeiten, damit es per file:// vom USB-Stick laeuft.
+ */
+(function (root) {
+  'use strict';
+  var IR = root.IR || (root.IR = {});
+
+  /* ---------------------------------------------------------------- Utils */
+  var U = IR.util = {
+    uid: function (p) {
+      return (p || 'id') + '-' + Date.now().toString(36) + '-' +
+        Math.random().toString(36).slice(2, 8);
+    },
+    nowISO: function () { return new Date().toISOString(); },
+    pad: function (n) { return (n < 10 ? '0' : '') + n; },
+    fmtTs: function (iso) {
+      try {
+        var d = new Date(iso);
+        return d.getFullYear() + '-' + U.pad(d.getMonth() + 1) + '-' +
+          U.pad(d.getDate()) + ' ' + U.pad(d.getHours()) + ':' +
+          U.pad(d.getMinutes());
+      } catch (e) { return iso; }
+    },
+    esc: function (s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    },
+    // Minimaler Markdown -> HTML (Ueberschriften, fett, code, Listen, Absaetze).
+    md: function (src) {
+      if (!src) return '';
+      var lines = String(src).split('\n'), out = [], inUl = false, inCode = false;
+      function closeUl() { if (inUl) { out.push('</ul>'); inUl = false; } }
+      for (var i = 0; i < lines.length; i++) {
+        var ln = lines[i];
+        if (/^```/.test(ln)) {
+          if (!inCode) { closeUl(); out.push('<pre><code>'); inCode = true; }
+          else { out.push('</code></pre>'); inCode = false; }
+          continue;
+        }
+        if (inCode) { out.push(U.esc(ln)); continue; }
+        var inl = function (t) {
+          return U.esc(t)
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>');
+        };
+        if (/^#{1,4}\s/.test(ln)) {
+          closeUl();
+          var lvl = ln.match(/^#+/)[0].length;
+          out.push('<h' + lvl + '>' + inl(ln.replace(/^#+\s/, '')) + '</h' + lvl + '>');
+        } else if (/^\s*[-*]\s+/.test(ln)) {
+          if (!inUl) { out.push('<ul>'); inUl = true; }
+          out.push('<li>' + inl(ln.replace(/^\s*[-*]\s+/, '')) + '</li>');
+        } else if (/^\s*$/.test(ln)) {
+          closeUl();
+        } else {
+          closeUl();
+          out.push('<p>' + inl(ln) + '</p>');
+        }
+      }
+      closeUl(); if (inCode) out.push('</code></pre>');
+      return out.join('\n');
+    }
+  };
+
+  /* ----------------------------------------------------------- Case-Modell */
+  // Ein "Case" buendelt den gesamten Vorfall: Metadaten, Zeitachse (audit-log),
+  // Antworten/Checks aus dem Playbook, Beweise (mit Hash + Chain of Custody),
+  // IOCs, Kommunikations-Log und abgeleitete Aufgaben.
+  IR.Case = {
+    create: function (opts) {
+      opts = opts || {};
+      return {
+        schema: 1,
+        id: U.uid('case'),
+        createdAt: U.nowISO(),
+        title: opts.title || 'Unbenannter Vorfall',
+        org: opts.org || '',
+        sector: opts.sector || '',
+        responder: opts.responder || '',
+        classification: opts.classification || 'TLP:AMBER',
+        playbookId: opts.playbookId || null,
+        status: 'offen',
+        flags: {},            // Entscheidungs-Flags (z.B. {leben_gefahr:true})
+        answers: {},          // stepId -> erfasster Wert
+        checks: {},           // stepId -> bool (abgehakt)
+        assess: {},           // stepId -> 'expected'|'refuted'|'other'|'open' (Schnell-Einschaetzung)
+        timeline: [],         // {ts, kind, text, by}
+        evidence: [],         // siehe addEvidence
+        iocs: [],             // {ts, type, value, note}
+        comms: [],            // {ts, audience, channel, status, content}
+        tasks: [],            // {ts, text, owner, done}
+        photos: [],           // {id, ts, name, note, host, dataUrl}
+        assets: [],           // Asset-Inventar (z.B. aus IDS): {name, ip, mac, type, os, location, owner, criticality}
+        vulns: [],            // Schwachstellen (z.B. aus IDS): {asset, cve, cvss, severity, title, status}
+        notes: []             // freie Notizen
+      };
+    },
+
+    addPhoto: function (c, p) {
+      p = p || {};
+      if (!c.photos) c.photos = [];
+      var ph = { id: U.uid('img'), ts: U.nowISO(), name: p.name || 'Foto', note: p.note || '', host: p.host || '', step: p.step || '', dataUrl: p.dataUrl || '' };
+      c.photos.push(ph);
+      IR.Case.log(c, 'evidence', 'Foto/Screenshot erfasst: ' + ph.name + (ph.host ? ' (' + ph.host + ')' : ''));
+      return ph;
+    },
+    removePhoto: function (c, id) { c.photos = (c.photos || []).filter(function (x) { return x.id !== id; }); return c; },
+
+    log: function (c, kind, text, by) {
+      c.timeline.push({ ts: U.nowISO(), kind: kind || 'note', text: text, by: by || c.responder || '' });
+      return c;
+    },
+
+    setFlag: function (c, k, v) { c.flags[k] = v; IR.Case.log(c, 'decision', 'Flag ' + k + ' = ' + v); return c; },
+    answer: function (c, stepId, val) { c.answers[stepId] = val; return c; },
+    check: function (c, stepId, val) {
+      c.checks[stepId] = !!val;
+      return c;
+    },
+
+    addEvidence: function (c, e) {
+      e = e || {};
+      var ev = {
+        id: U.uid('ev'),
+        ts: U.nowISO(),
+        name: e.name || 'Beweis',
+        type: e.type || 'datei',           // datei|image|memory|log|netzwerk|foto|aussage
+        source: e.source || '',            // Host/Geraet/System
+        method: e.method || '',            // wie gesichert (Tool/Befehl)
+        hash: e.hash || '',                // sha256
+        size: e.size || '',
+        location: e.location || '',        // Ablage (USB-Stick/Asservat)
+        collectedBy: e.collectedBy || c.responder || '',
+        volatility: e.volatility || '',    // hoch/mittel/niedrig
+        notes: e.notes || '',
+        custody: [{ ts: U.nowISO(), action: 'gesichert', by: e.collectedBy || c.responder || '', note: e.location || '' }]
+      };
+      c.evidence.push(ev);
+      IR.Case.log(c, 'evidence', 'Beweis gesichert: ' + ev.name + (ev.hash ? ' (sha256 ' + ev.hash.slice(0, 12) + '…)' : ''));
+      return ev;
+    },
+    custodyTransfer: function (c, evId, action, by, note) {
+      var ev = c.evidence.filter(function (x) { return x.id === evId; })[0];
+      if (!ev) return null;
+      ev.custody.push({ ts: U.nowISO(), action: action, by: by, note: note || '' });
+      IR.Case.log(c, 'custody', 'Asservat ' + ev.name + ': ' + action + ' -> ' + by);
+      return ev;
+    },
+
+    addIoc: function (c, type, value, note) {
+      var ioc = { ts: U.nowISO(), type: type, value: value, note: note || '' };
+      c.iocs.push(ioc); IR.Case.log(c, 'ioc', 'IOC ' + type + ': ' + value);
+      return ioc;
+    },
+    addComm: function (c, m) {
+      var x = { ts: U.nowISO(), audience: m.audience, channel: m.channel || '', status: m.status || 'entwurf', content: m.content || '' };
+      c.comms.push(x); IR.Case.log(c, 'comms', 'Kommunikation (' + x.audience + ', ' + x.status + ')');
+      return x;
+    },
+    addTask: function (c, text, owner) {
+      var t = { id: U.uid('task'), ts: U.nowISO(), text: text, owner: owner || '', done: false };
+      c.tasks.push(t); return t;
+    },
+    // Aufloesung des Playbooks: eingebettetes (generiertes) oder katalogisiertes.
+    playbook: function (c) { return (c && c.playbook) || IR.engine.playbook(c && c.playbookId); }
+  };
+
+  /* ------------------------------------------------------------ Persistenz */
+  IR.store = {
+    key: 'ir_pilot_cases',
+    _ls: function () {
+      try { return root.localStorage; } catch (e) { return null; }
+    },
+    list: function () {
+      var ls = this._ls(); if (!ls) return IR._mem || (IR._mem = []);
+      try { return JSON.parse(ls.getItem(this.key) || '[]'); } catch (e) { return []; }
+    },
+    saveAll: function (arr) {
+      var ls = this._ls(); if (!ls) { IR._mem = arr; return true; }
+      try { ls.setItem(this.key, JSON.stringify(arr)); this.quotaError = false; return true; }
+      catch (e) { this.quotaError = true; IR._mem = arr; return false; }  // Quota o.ae.: in-memory halten, nicht abstuerzen
+    },
+    save: function (c) {
+      var all = this.list(), i = all.findIndex(function (x) { return x.id === c.id; });
+      if (i >= 0) all[i] = c; else all.push(c);
+      return this.saveAll(all);   // true = persistiert, false = nur im Speicher (Quota)
+    },
+    get: function (id) { return this.list().filter(function (x) { return x.id === id; })[0] || null; },
+    remove: function (id) { this.saveAll(this.list().filter(function (x) { return x.id !== id; })); }
+  };
+
+  /* --------------------------------------------------------------- Engine */
+  // Berechnet die sichtbaren Schritte eines Playbooks fuer den aktuellen Fall
+  // (showIf wird gegen flags/answers ausgewertet) und den Fortschritt.
+  IR.engine = {
+    visibleSteps: function (phase, c) {
+      return (phase.steps || []).filter(function (s) {
+        return !s.showIf || IR.engine.evalCond(s.showIf, c);
+      });
+    },
+    evalCond: function (cond, c) {
+      // cond: {flag:'x', equals:true} | {answered:'stepId'} | {any:[...]} | {all:[...]}
+      if (cond.any) return cond.any.some(function (x) { return IR.engine.evalCond(x, c); });
+      if (cond.all) return cond.all.every(function (x) { return IR.engine.evalCond(x, c); });
+      if (cond.flag != null) return c.flags[cond.flag] === (cond.equals == null ? true : cond.equals);
+      if (cond.answered != null) return c.answers[cond.answered] != null && c.answers[cond.answered] !== '';
+      return true;
+    },
+    progress: function (pb, c) {
+      var total = 0, done = 0;
+      (pb.phases || []).forEach(function (ph) {
+        IR.engine.visibleSteps(ph, c).forEach(function (s) {
+          if (s.type === 'check' || s.type === 'evidence' || s.type === 'comms' || s.type === 'tool') {
+            total++; if (c.checks[s.id]) done++;
+          }
+        });
+      });
+      return { total: total, done: done, pct: total ? Math.round(done * 100 / total) : 0 };
+    },
+    playbook: function (id) {
+      return (IR.playbooks || []).filter(function (p) { return p.id === id; })[0] || null;
+    }
+  };
+
+  /* --------------------------------------------------------------- Ingest */
+  // Importiert ein "Ingest-Bundle" (vom Smartphone/Desktop) in einen Fall:
+  // { source, ts, iocs:[{type,value,note}], hosts:[{ip,name,ports,note}],
+  //   notes:[str], timeline:[{ts,kind,text}], evidence:[{name,type,hash,...}] }
+  IR.ingest = {
+    schema: 1,
+    merge: function (c, bundle) {
+      bundle = bundle || {};
+      var added = { iocs: 0, hosts: 0, assets: 0, vulns: 0, notes: 0, timeline: 0, evidence: 0 };
+      var seen = {};
+      if (!c.assets) c.assets = []; if (!c.vulns) c.vulns = [];
+      c.iocs.forEach(function (x) { seen[x.type + '|' + x.value] = 1; });
+      (bundle.iocs || []).forEach(function (x) {
+        if (!x || !x.value) return;
+        var k = (x.type || 'sonstiges') + '|' + x.value;
+        if (seen[k]) return; seen[k] = 1;
+        IR.Case.addIoc(c, x.type || 'sonstiges', x.value, x.note || (bundle.source ? 'import:' + bundle.source : ''));
+        added.iocs++;
+      });
+      (bundle.hosts || []).forEach(function (h) {
+        if (!h) return;
+        var v = h.ip || h.name; if (!v) return;
+        IR.Case.addIoc(c, 'host', v, [h.name, h.ports, h.note].filter(Boolean).join(' · '));
+        added.hosts++;
+      });
+      // Asset-Inventar (z.B. aus dem IDS): nach IP/Name deduplizieren
+      var aseen = {}; c.assets.forEach(function (a) { aseen[(a.ip || a.name || '').toLowerCase()] = 1; });
+      (bundle.assets || []).forEach(function (a) {
+        if (!a) return; var key = (a.ip || a.name || a.host || '').toLowerCase(); if (!key || aseen[key]) return; aseen[key] = 1;
+        c.assets.push({ name: a.name || a.host || a.ip, ip: a.ip || '', mac: a.mac || '', type: a.type || '',
+          os: a.os || '', location: a.location || '', owner: a.owner || '', criticality: a.criticality || '', source: bundle.source || 'ids' });
+        added.assets++;
+      });
+      // Schwachstellen (z.B. aus dem Schwachstellen-Management)
+      (bundle.vulns || []).forEach(function (v) {
+        if (!v || !(v.cve || v.title)) return;
+        c.vulns.push({ asset: v.asset || v.host || v.ip || '', cve: v.cve || '', cvss: v.cvss != null ? v.cvss : '',
+          severity: v.severity || '', title: v.title || v.cve || '', status: v.status || 'offen', source: bundle.source || 'ids' });
+        added.vulns++;
+        if (/krit|high|hoch|9\.|10/.test(String(v.severity || v.cvss))) IR.Case.log(c, 'ingest', 'Kritische Schwachstelle: ' + (v.cve || v.title) + (v.asset ? ' @ ' + v.asset : ''));
+      });
+      // IDS-Alerts -> IOCs + Zeitachse
+      (bundle.alerts || []).forEach(function (al) {
+        if (!al) return;
+        var sig = al.signature || al.title || al.msg || 'IDS-Alert';
+        if (al.src_ip) { var k = 'ip|' + al.src_ip; if (!seen[k]) { seen[k] = 1; IR.Case.addIoc(c, 'ip', al.src_ip, 'IDS: ' + sig); added.iocs++; } }
+        if (al.dest_ip) { var k2 = 'ip|' + al.dest_ip; if (!seen[k2]) { seen[k2] = 1; IR.Case.addIoc(c, 'ip', al.dest_ip, 'IDS: ' + sig); added.iocs++; } }
+        c.timeline.push({ ts: al.ts || U.nowISO(), kind: 'ids', text: sig + (al.severity ? ' [' + al.severity + ']' : '') + (al.src_ip ? ' ' + al.src_ip + '→' + (al.dest_ip || '?') : ''), by: bundle.source || 'IDS' });
+        added.timeline++;
+      });
+      (bundle.notes || []).forEach(function (n) { if (n) { IR.Case.log(c, 'ingest', String(n)); added.notes++; } });
+      (bundle.timeline || []).forEach(function (t) {
+        if (!t || !t.text) return;
+        c.timeline.push({ ts: t.ts || U.nowISO(), kind: t.kind || 'ingest', text: t.text, by: bundle.source || 'import' });
+        added.timeline++;
+      });
+      (bundle.evidence || []).forEach(function (e) {
+        if (!e || !e.name) return;
+        IR.Case.addEvidence(c, e); added.evidence++;
+      });
+      IR.Case.log(c, 'ingest', 'Import' + (bundle.source ? ' (' + bundle.source + ')' : '') + ': ' +
+        Object.keys(added).map(function (k) { return added[k] + ' ' + k; }).filter(function (s) { return s[0] !== '0'; }).join(', '));
+      return added;
+    },
+    // Aus Freitext IOCs grob extrahieren (Quick-Paste vom Handy)
+    fromText: function (text) {
+      var b = { source: 'paste', iocs: [] }, seen = {};
+      function add(type, value) { var k = type + '|' + value; if (!seen[k]) { seen[k] = 1; b.iocs.push({ type: type, value: value }); } }
+      (text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || []).forEach(function (m) { add('ip', m); });
+      (text.match(/\b[a-f0-9]{64}\b/gi) || []).forEach(function (m) { add('hash', m.toLowerCase()); });
+      (text.match(/\b[a-f0-9]{32}\b/gi) || []).forEach(function (m) { add('hash', m.toLowerCase()); });
+      (text.match(/[A-Za-z0-9.\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g) || []).forEach(function (m) { add('email', m); });
+      (text.match(/[A-Z]{2}\d{2}[A-Z0-9 ]{10,30}/g) || []).forEach(function (m) { add('iban', m.replace(/\s+/g, '')); });
+      (text.match(/\bhttps?:\/\/[^\s"'<>]+/gi) || []).forEach(function (m) { add('url', m); });
+      (text.match(/\b(?:[a-z0-9\-]+\.)+[a-z]{2,}\b/gi) || []).forEach(function (m) {
+        if (!/\d+\.\d+\.\d+\.\d+/.test(m)) add('domain', m.toLowerCase());
+      });
+      return b;
+    }
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = IR;
+})(typeof window !== 'undefined' ? window : globalThis);
