@@ -85,3 +85,27 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
   background:var(--acc);color:#04243f;font-weight:700;padding:10px 16px;border-radius:20px;
   opacity:0;transition:.25s;pointer-events:none;z-index:20}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Assistent / Wizard */
+.start .muted{margin:.2em 0 .6em}
+.bigbtn{display:block;width:100%;background:var(--acc);color:#04243f;border:0;border-radius:10px;
+  padding:13px;font-size:15px;font-weight:800;margin:6px 0}
+.bigbtn:disabled{opacity:.4}
+.wizsteps{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
+.wizsteps span{padding:4px 8px;border-radius:12px;background:#0a233b;border:1px solid var(--line);color:var(--muted)}
+.wizsteps span.on{background:var(--acc);color:#04243f;font-weight:700;border-color:var(--acc)}
+.wizsteps span.done{color:var(--ok);border-color:var(--ok)}
+.wgroup h3{margin:10px 0 4px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips.col{flex-direction:column}
+.chip{background:#0a233b;border:1px solid var(--line);color:var(--txt);border-radius:16px;
+  padding:8px 12px;font-size:13px;text-align:left}
+.chip.sel{background:var(--acc);color:#04243f;border-color:var(--acc);font-weight:700}
+.qitem{border-top:1px solid var(--line);padding:8px 0}.qitem:first-child{border-top:0}
+.qq{font-size:13.5px;margin-bottom:6px}
+.hypitem{display:block;width:100%;text-align:left;background:#0c2944;border:1px solid var(--line);
+  color:var(--txt);border-radius:10px;padding:10px;margin:6px 0}
+.hypitem.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.hypitem .bar{height:6px;background:#0a233b;border-radius:4px;overflow:hidden;margin:5px 0}
+.hypitem .bar>div{height:100%;background:var(--acc)}
+.wnav{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:4px}
+.wnav .bigbtn{width:auto;flex:1}

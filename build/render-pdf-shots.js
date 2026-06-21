@@ -32,6 +32,14 @@ var fileUrl = function (p) { return 'file://' + p; };
       console.log('wrote dist/' + shots[i].file);
     }
 
+    // 2b) Assistent (Wizard) – Umgebungsauswahl
+    await p2.goto(fileUrl(path.join(ROOT, 'index.html')) + '?w=1', { waitUntil: 'networkidle0' });
+    await p2.evaluate(function () { document.querySelector('[data-act="wiz-start"]').click(); });
+    await new Promise(function (r) { setTimeout(r, 300); });
+    await p2.screenshot({ path: path.join(DIST, 'shot-wizard.png'), fullPage: true });
+    console.log('wrote dist/shot-wizard.png');
+    shots.splice(1, 0, { view: 'Assistent: Umgebung & Beobachtung', file: 'shot-wizard.png' });
+
     // 3) Walkthrough-PDF aus den Screenshots
     var imgs = shots.map(function (s) {
       var b64 = fs.readFileSync(path.join(DIST, s.file)).toString('base64');

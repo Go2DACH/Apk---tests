@@ -148,7 +148,9 @@
     addTask: function (c, text, owner) {
       var t = { id: U.uid('task'), ts: U.nowISO(), text: text, owner: owner || '', done: false };
       c.tasks.push(t); return t;
-    }
+    },
+    // Aufloesung des Playbooks: eingebettetes (generiertes) oder katalogisiertes.
+    playbook: function (c) { return (c && c.playbook) || IR.engine.playbook(c && c.playbookId); }
   };
 
   /* ------------------------------------------------------------ Persistenz */

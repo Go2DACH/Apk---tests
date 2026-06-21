@@ -8,7 +8,7 @@
 
   IR.report = {
     markdown: function (c) {
-      var pb = IR.engine.playbook(c.playbookId);
+      var pb = IR.Case.playbook(c);
       var L = [];
       L.push('# Incident-Report – ' + c.title);
       L.push('');
@@ -87,7 +87,7 @@
 
     // Kompakte Krisen-Lagekarte (eine Bildschirmseite)
     sitrep: function (c) {
-      var pb = IR.engine.playbook(c.playbookId);
+      var pb = IR.Case.playbook(c);
       var prog = pb ? IR.engine.progress(pb, c) : { done: 0, total: 0, pct: 0 };
       return [
         'LAGEBERICHT – ' + c.title,

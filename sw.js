@@ -2,8 +2,9 @@
 var CACHE = 'ir-pilot-v1';
 var ASSETS = [
   './', './index.html', './css/app.css',
-  './js/core.js', './js/report.js', './js/app.js',
-  './data/playbooks.js', './data/comms.js', './data/toolkit.js',
+  './js/core.js', './js/framework.js', './js/report.js', './js/app.js',
+  './data/catalog.js', './data/playbooks.js', './data/comms.js',
+  './data/toolkit.js', './data/questions.js',
   './manifest.webmanifest', './assets/icon.svg'
 ];
 self.addEventListener('install', function (e) {

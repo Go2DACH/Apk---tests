@@ -559,36 +559,9 @@
     'ot-wasserwerk': 'Auffaellige Sollwerte koennen aus **normaler Regelung, Wartung oder Sensordrift** stammen. Erst Manipulation belegen, bevor ein Cyber-Incident ausgerufen wird – Wasserqualitaet aber vorsorglich sichern.',
     'cloud-m365-takeover': 'Aenderungen evtl. durch **legitimen Admin/MSP** oder eine genehmigte automatisierte App. Erst unautorisierte Aktivitaet (kein bekannter Urheber) belegen.'
   };
-  var GATE = { any: [{ flag: 'status', equals: 'confirmed' }, { flag: 'status', equals: 'suspected' }] };
-  var BEN = { flag: 'status', equals: 'benign' };
-
-  IR.playbooks.forEach(function (pb) {
-    var p = pb.id;
-    var note = benignNotes[p] || 'Pruefen, ob eine legitime/harmlose Ursache vorliegt, bevor ein Angriff angenommen wird.';
-    var vsteps = [
-      s(p + '-v-doc', 'check', 'Erstbewertung & Quelle dokumentieren', 'Wer meldet **was genau**? Quelle/Verlaesslichkeit, Zeitpunkt, betroffene Systeme. Fakten von Vermutung trennen.'),
-      s(p + '-v-benign', 'note', 'Nicht-boeswillige Erklaerung pruefen', note),
-      s(p + '-v-assess', 'choice', 'Einstufung – Vorfall oder Fehlalarm?', 'Aufgrund der ersten Fakten einstufen. **Bei Safety-/Versorgungsrisiko trotz Unsicherheit vorsorglich wie einen Vorfall behandeln** (Schutzmassnahmen ja, irreversible Schritte nein).', { options: [
-        { label: 'Bestaetigter Angriff/Vorfall', setFlag: { k: 'status', v: 'confirmed' } },
-        { label: 'Verdacht – weiter pruefen', setFlag: { k: 'status', v: 'suspected' } },
-        { label: 'Fehlalarm / kein Angriff', setFlag: { k: 'status', v: 'benign' } }
-      ] }),
-      s(p + '-v-bverify', 'check', 'Benigne Ursache positiv bestaetigen & belegen', 'Die harmlose Erklaerung **belegen** (nicht nur annehmen) – z.B. legitime Fernwartung beim Dienstleister verifizieren, Dienstkonto-Fehlkonfig nachweisen, Config/Pruefsumme = Soll.', { showIf: BEN }),
-      s(p + '-v-bevid', 'check', 'Minimal-Doku/Beweis sichern', 'Kurzdoku + relevante Logs/Screenshots fuer die Nachvollziehbarkeit sichern (falls es spaeter doch relevant wird).', { showIf: BEN }),
-      s(p + '-v-bdeesc', 'comms', 'Entwarnung kommunizieren', 'Eskalation kontrolliert zuruecknehmen, Stakeholder/Meldewege ueber die Entwarnung informieren.', { commsId: 'holding_statement', showIf: BEN }),
-      s(p + '-v-breason', 'input', 'Begruendung der Entwarnung', 'Warum **kein** sicherheitsrelevanter Vorfall? Knapp und belegbar.', { field: { name: p + '-deesc', label: 'Begruendung kein Vorfall', kind: 'textarea' }, showIf: BEN }),
-      s(p + '-v-bclose', 'check', 'Als „kein sicherheitsrelevanter Vorfall" schliessen', 'Fall begruendet schliessen; bei neuen Hinweisen jederzeit reaktivieren.', { showIf: BEN }),
-      s(p + '-v-proceed', 'note', 'Weiter mit dem Playbook', 'Einstufung bestaetigt → mit den Phasen unten fortfahren. **Sicherheit und fluechtige Beweise zuerst.**', { showIf: GATE })
-    ];
-    pb.phases.unshift({ id: 'verifikation', title: 'Erstbewertung – Vorfall oder Fehlalarm?', steps: vsteps });
-    // Alle uebrigen (Angriffs-)Schritte hinter die Einstufung haengen.
-    pb.phases.forEach(function (ph) {
-      if (ph.id === 'verifikation') return;
-      ph.steps.forEach(function (st) {
-        st.showIf = st.showIf ? { all: [GATE, st.showIf] } : GATE;
-      });
-    });
-  });
+  // Erstbewertungs-Gate zentral aus framework.js anwenden + generisches Playbook anhaengen.
+  IR.playbooks.forEach(function (pb) { IR.framework.applyGate(pb, benignNotes[pb.id]); });
+  if (IR.genericPlaybook) IR.playbooks.push(IR.genericPlaybook);
 
   if (typeof module !== 'undefined' && module.exports) module.exports = IR.playbooks;
 })(typeof window !== 'undefined' ? window : globalThis);

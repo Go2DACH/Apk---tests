@@ -9,6 +9,33 @@ Fold 5.
 > Gebaut für den Ernstfall: Du hast nur Handy, USB-Stick und USB-Ethernet dabei
 > und musst sofort strukturiert, beweissicher und meldepflicht-konform arbeiten.
 
+## Framework: Assistent statt fester Szenarien
+
+Beim Start führt ein **Assistent** durch drei Fragen – ohne Technikwissen – und
+**baut daraus ein massgeschneidertes Playbook** mit den passenden Tools an der
+richtigen Stelle:
+
+1. **Umgebung** wählen – **60+ Unternehmens-/Anlagentypen** (Gastro, Handwerk,
+   Industrie, Energie/KRITIS, Wasser, Verkehr, Gesundheit, Handel, Agrar, Bau,
+   Öffentlich, Gebäude/IT), u. a. Brauerei, Sägewerk, Maschinenbau/Instandhaltung,
+   Feuerwehr/Leitstelle, Gebäudeautomation, Umspannwerk, Wasserwerk, Bahnstellwerk.
+2. **Was wurde beobachtet?** – **13 Impacts in Kundensicht** (z. B. „alles
+   gesperrt", „falsche Bankdaten", „Maschine spinnt", „Bildschirm bewegt sich",
+   „Webseite down", „Gefahr für Menschen/Versorgung").
+3. **Kurzer Fragebogen** (laienverständlich) → das Tool berechnet eine **erste
+   technische Vermutung** aus **17 Cyber-Hypothesen** (Ransomware, BEC, OT-
+   Manipulation, RAT, AD/Identität, Phishing, Supply-Chain, DDoS, Webshell,
+   Insider, Exfiltration, Cloud-Takeover, Wiper, Brute-Force, Erpressung – plus
+   **3 benigne** „kein Cyber-Angriff": physisch, Fehlkonfiguration, Defekt).
+
+Aus **Umgebung + Impact + Hypothese** generiert der Generator ein vollständiges
+Playbook (Erstbewertung → Triage → Krisenkommunikation inkl. passender
+Meldepflichten → Beweissicherung nach Volatilität **mit den richtigen Tools** →
+Eindämmung → Bereinigung → Wiederanlauf → Ermittlung → Abschluss). Ein
+**generisches Playbook** und die 9 kuratierten Beispiele bleiben als Schnellstart
+verfügbar. Kataloge: `data/catalog.js`, Fragebogen: `data/questions.js`,
+Generator/Scoring: `js/framework.js`.
+
 ## Was es kann
 
 - **Erstbewertungs-Gate „Vorfall oder Fehlalarm?"**: Nicht jeder Anruf ist ein

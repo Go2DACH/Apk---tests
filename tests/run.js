@@ -1,9 +1,12 @@
 /* IR-Pilot – Headless-Tests (Node). Validiert Daten, Engine, Bericht, Comms. */
 'use strict';
 require('../js/core.js');
-require('../data/playbooks.js');
+require('../data/catalog.js');
 require('../data/comms.js');
 require('../data/toolkit.js');
+require('../data/questions.js');
+require('../js/framework.js');
+require('../data/playbooks.js');
 require('../js/report.js');
 var IR = globalThis.IR;
 
@@ -15,7 +18,8 @@ var EXPECTED = ['bec-iban', 'ot-umspannwerk', 'ot-stellwerk', 'ransomware', 'ad-
 var PHASES = ['triage', 'comms', 'forensik', 'eindaemmung', 'bereinigung', 'wiederanlauf', 'ermittlung', 'abschluss'];
 
 group('Playbooks vorhanden & vollstaendig', function () {
-  ok(IR.playbooks.length === 9, 'genau 9 Playbooks (ist ' + IR.playbooks.length + ')');
+  ok(IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).length === 9, '9 kuratierte Playbooks');
+  ok(IR.engine.playbook('generic'), 'generisches Playbook vorhanden');
   EXPECTED.forEach(function (id) {
     ok(IR.engine.playbook(id), 'Playbook ' + id + ' existiert');
   });
@@ -176,6 +180,65 @@ group('Timeline-CSV', function () {
   var csv = IR.report.timelineCSV(c);
   ok(/"timestamp","kind","text","by"/.test(csv), 'CSV-Header');
   ok(/""mit Anfuehrungszeichen""/.test(csv), 'CSV maskiert Anfuehrungszeichen');
+});
+
+group('Framework: Kataloge', function () {
+  ok(IR.environments.length >= 50, '>=50 Umgebungen (ist ' + IR.environments.length + ')');
+  ok(IR.impacts.length >= 10, '>=10 Impacts (ist ' + IR.impacts.length + ')');
+  ok(IR.hypotheses.length >= 15, '>=15 Hypothesen (ist ' + IR.hypotheses.length + ')');
+  // gewuenschte Spezial-Umgebungen vorhanden
+  ['brewery', 'sawmill', 'machine_builder', 'maintenance', 'fire_dept', 'facility_mgmt'].forEach(function (id) {
+    ok(IR.catalog.env(id), 'Umgebung ' + id + ' vorhanden');
+  });
+  // Eindeutige IDs
+  ['environments', 'impacts', 'hypotheses'].forEach(function (k) {
+    var seen = {}, dup = 0; IR[k].forEach(function (x) { if (seen[x.id]) dup++; seen[x.id] = 1; });
+    ok(dup === 0, k + ': IDs eindeutig');
+  });
+});
+
+group('Framework: Hypothesen-Scoring', function () {
+  // Brauerei + Maschine seltsam + "Maschine falsche Werte=ja" -> OT-Manipulation oben
+  var r = IR.framework.suggest('brewery', ['machine_weird'], { q_machine: 'ja', q_safety: 'ja' });
+  ok(r.length > 0, 'Scoring liefert Hypothesen');
+  ok(r[0].h.id === 'ot_manipulation', 'Top-Hypothese OT-Manipulation (ist ' + r[0].h.id + ')');
+  // Bueroumgebung + Geld/Rechnung -> BEC oben
+  var r2 = IR.framework.suggest('law_office', ['money_fraud'], { q_money: 'ja' });
+  ok(r2[0].h.id === 'bec', 'Top-Hypothese BEC bei Rechnungsbetrug');
+  // Maus bewegt sich + legitime Fernwartung=ja -> benign hoch bewertet
+  var r3 = IR.framework.suggest('rail_signal', ['remote_seen'], { q_remote: 'ja', q_remote_legit: 'ja' });
+  ok(r3.some(function (x) { return x.h.id === 'benign_misconfig' && x.score > 0; }), 'Benigne Erklaerung wird gewichtet');
+});
+
+group('Framework: Playbook-Generierung', function () {
+  var sel = { envId: 'sawmill', impactIds: ['safety_event', 'machine_weird'], hypothesisId: 'ot_manipulation', answers: { q_safety: 'ja' } };
+  var pb = IR.framework.buildPlaybook(sel);
+  ok(pb.phases[0].id === 'verifikation', 'Gate als erste Phase');
+  ['triage', 'comms', 'forensik', 'eindaemmung', 'bereinigung', 'wiederanlauf', 'ermittlung', 'abschluss'].forEach(function (need) {
+    ok(pb.phases.some(function (p) { return p.id === need; }), 'Phase ' + need + ' vorhanden');
+  });
+  // Step-IDs eindeutig & Refs gueltig
+  var seen = {}, dup = 0, toolSteps = 0;
+  pb.phases.forEach(function (ph) { ph.steps.forEach(function (s) {
+    if (seen[s.id]) dup++; seen[s.id] = 1;
+    if (s.type === 'comms') ok(IR.comms[s.commsId], 'comms-Ref gueltig (' + s.commsId + ')');
+    if (s.type === 'tool') { toolSteps++; ok(IR.toolkit.some(function (t) { return t.id === s.toolId; }), 'tool-Ref gueltig (' + s.toolId + ')'); }
+  }); });
+  ok(dup === 0, 'generierte Step-IDs eindeutig');
+  ok(toolSteps > 0, 'Tools im Playbook platziert');
+  // KRITIS-Umgebung -> BSI-Meldung enthalten
+  var commsIds = []; pb.phases.forEach(function (ph) { ph.steps.forEach(function (s) { if (s.commsId) commsIds.push(s.commsId); }); });
+  ok(commsIds.indexOf('kritis_bsi') >= 0, 'KRITIS-Umgebung -> BSI-Meldung');
+
+  // Voller Durchlauf -> Report
+  var c = IR.Case.create({ playbookId: pb.id, title: pb.title }); c.playbook = pb;
+  IR.Case.setFlag(c, 'status', 'confirmed');
+  pb.phases.forEach(function (ph) { IR.engine.visibleSteps(ph, c).forEach(function (s) {
+    if (['check', 'evidence', 'comms', 'tool'].indexOf(s.type) >= 0) c.checks[s.id] = true;
+  }); });
+  var md = IR.report.markdown(c);
+  ok(/Incident-Report/.test(md) && /Durchgefuehrte Massnahmen/.test(md), 'Report fuer generiertes Playbook');
+  ok(IR.engine.progress(pb, c).pct === 100, 'Fortschritt 100% nach Durchlauf');
 });
 
 console.log('\n' + passes + ' ok, ' + fails + ' fail');

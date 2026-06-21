@@ -30,8 +30,9 @@ dom.window.addEventListener('load', function () {
 function run() {
   try {
     var w = dom.window, d = w.document, IR = w.IR;
-    ok(IR && IR.playbooks.length === 9, 'IR geladen, 9 Playbooks');
+    ok(IR && IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).length === 9, 'IR geladen, 9 kuratierte Playbooks');
     ok(d.querySelectorAll('.pbcard').length === 9, 'Home zeigt 9 Szenario-Karten');
+    ok(IR.environments.length >= 50 && IR.hypotheses.length >= 15, 'Kataloge geladen (>=50 Umgebungen, >=15 Hypothesen)');
 
     // Fall 1 (BEC) anlegen
     var becCard = [].slice.call(d.querySelectorAll('.pbcard')).filter(function (b) { return b.dataset.id === 'bec-iban'; })[0];
@@ -73,6 +74,20 @@ function run() {
     [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'report'; })[0].click();
     var rep = d.querySelector('.report').textContent;
     ok(/Incident-Report/.test(rep) && /Chain of Custody/.test(rep), 'Bericht gerendert');
+
+    // ---- Assistent (Wizard) durchspielen ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="wiz-start"]').click();
+    ok(d.querySelector('.wizsteps'), 'Wizard gestartet (Schrittanzeige)');
+    d.querySelector('[data-act="wiz-env"]').click();          // Umgebung waehlen
+    d.querySelector('[data-act="wiz-next"]').click();          // -> Beobachtung
+    d.querySelector('[data-act="wiz-impact"]').click();        // Impact waehlen
+    d.querySelector('[data-act="wiz-next"]').click();          // -> Fragebogen
+    d.querySelector('[data-act="wiz-next"]').click();          // -> Vermutung
+    ok(d.querySelector('.hypitem'), 'Wizard zeigt Hypothesen-Vorschlag');
+    d.querySelector('[data-act="wiz-generate"]').click();      // Playbook erzeugen
+    ok(d.querySelector('.derivation'), 'Generiertes Playbook wird angezeigt');
+    ok(IR.store.list().some(function (x) { return x.playbook && x.playbook.generated; }), 'Generierter Fall gespeichert');
 
     console.log('\nUI: ' + passes + ' ok, ' + fails + ' fail');
     process.exit(fails ? 1 : 0);

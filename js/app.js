@@ -41,9 +41,10 @@
     Array.prototype.forEach.call(document.querySelectorAll('.nav-btn'), function (b) {
       b.classList.toggle('active', b.dataset.view === state.view);
     });
-    if (!c) return root.innerHTML = viewHome();
+    if (!c) return root.innerHTML = (state.view === 'wizard' ? viewWizard() : viewHome());
     var v = state.view;
     if (v === 'home') root.innerHTML = viewHome();
+    else if (v === 'wizard') root.innerHTML = viewWizard();
     else if (v === 'pb') root.innerHTML = viewPlaybook();
     else if (v === 'evidence') root.innerHTML = viewEvidence();
     else if (v === 'ioc') root.innerHTML = viewIoc();
@@ -55,8 +56,12 @@
 
   function viewHome() {
     var cases = IR.store.list();
-    var h = '<section class="card"><h2>Neuer Vorfall</h2><p class="muted">Szenario waehlen – startet ein gefuehrtes Playbook.</p><div class="pbgrid">';
-    IR.playbooks.forEach(function (p) {
+    var h = '<section class="card start"><h2>Neuer Vorfall</h2>' +
+      '<p class="muted">Gefuehrter Start: Umgebung &amp; Beobachtung waehlen (ohne Technikwissen), Fragebogen beantworten – das Tool schlaegt eine Vermutung vor und baut das Playbook.</p>' +
+      '<button class="bigbtn" data-act="wiz-start">▶ Gefuehrter Start (Assistent)</button>' +
+      '<button class="mini" data-act="new" data-id="generic">Generisches Playbook starten</button></section>';
+    h += '<section class="card"><h2>Schnellstart (Beispiele)</h2><div class="pbgrid">';
+    IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).forEach(function (p) {
       h += '<button class="pbcard" data-act="new" data-id="' + p.id + '">' +
         '<span class="sev sev-' + sevClass(p.severity) + '">' + U.esc(p.severity) + '</span>' +
         '<strong>' + U.esc(p.title) + '</strong>' +
@@ -67,7 +72,7 @@
     h += '<section class="card"><h2>Offene Faelle</h2>';
     if (!cases.length) h += '<p class="muted">Noch keine Faelle.</p>';
     cases.slice().reverse().forEach(function (x) {
-      var pb = IR.engine.playbook(x.playbookId);
+      var pb = IR.Case.playbook(x);
       var pr = pb ? IR.engine.progress(pb, x) : { pct: 0 };
       h += '<div class="row caseitem"><button class="link" data-act="open" data-id="' + x.id + '">' +
         '<strong>' + U.esc(x.title) + '</strong><small>' + U.fmtTs(x.createdAt) + ' · ' + pr.pct + ' %</small></button>' +
@@ -77,8 +82,67 @@
     return h;
   }
 
+  /* --------------------------------------------------------- Assistent */
+  function wiz() { return state.wiz || (state.wiz = { step: 0, q: '', envId: null, impactIds: [], answers: {}, hypId: null }); }
+  function viewWizard() {
+    var w = wiz();
+    var names = ['Umgebung', 'Beobachtung', 'Fragebogen', 'Vermutung'];
+    var head = '<section class="card"><div class="wizsteps">' + names.map(function (t, i) {
+      return '<span class="' + (i === w.step ? 'on' : (i < w.step ? 'done' : '')) + '">' + (i + 1) + '. ' + t + '</span>';
+    }).join('') + '</div></section>';
+    return head + [wizEnv, wizImpact, wizQuestions, wizHypo][w.step](w);
+  }
+  function wizEnv(w) {
+    var q = (w.q || '').toLowerCase(), groups = IR.catalog.groups();
+    var h = '<section class="card"><h2>1. Welche Umgebung?</h2>' +
+      '<input id="wizq" placeholder="Suchen (z.B. Brauerei, Saegewerk, Feuerwehr)" value="' + U.esc(w.q || '') + '">';
+    Object.keys(groups).forEach(function (g) {
+      var items = groups[g].filter(function (e) { return !q || e.name.toLowerCase().indexOf(q) >= 0 || g.toLowerCase().indexOf(q) >= 0; });
+      if (!items.length) return;
+      h += '<div class="wgroup"><h3>' + U.esc(g) + '</h3><div class="chips">' + items.map(function (e) {
+        return '<button class="chip ' + (w.envId === e.id ? 'sel' : '') + '" data-act="wiz-env" data-id="' + e.id + '">' + U.esc(e.name) + '</button>';
+      }).join('') + '</div></div>';
+    });
+    return h + '</section><div class="wnav"><button class="mini" data-act="wiz-cancel">Abbrechen</button>' +
+      '<button class="bigbtn" data-act="wiz-next"' + (w.envId ? '' : ' disabled') + '>Weiter ▶</button></div>';
+  }
+  function wizImpact(w) {
+    var h = '<section class="card"><h2>2. Was wurde beobachtet?</h2><p class="muted">Mehrfachauswahl moeglich (Kundensicht).</p><div class="chips col">';
+    IR.impacts.forEach(function (im) {
+      h += '<button class="chip ' + (w.impactIds.indexOf(im.id) >= 0 ? 'sel' : '') + '" data-act="wiz-impact" data-id="' + im.id + '">' + U.esc(im.name) + '</button>';
+    });
+    return h + '</div></section><div class="wnav"><button class="mini" data-act="wiz-back">◀ Zurueck</button>' +
+      '<button class="bigbtn" data-act="wiz-next"' + (w.impactIds.length ? '' : ' disabled') + '>Weiter ▶</button></div>';
+  }
+  function wizQuestions(w) {
+    var env = IR.catalog.env(w.envId), qs = IR.visibleQuestions(env, w.answers);
+    var h = '<section class="card"><h2>3. Kurzer Fragebogen</h2>';
+    qs.forEach(function (q) {
+      h += '<div class="qitem"><div class="qq">' + U.esc(q.q) + '</div>';
+      if (q.type === 'text') h += '<input data-wizans="' + q.id + '" value="' + U.esc(w.answers[q.id] || '') + '">';
+      else if (q.type === 'yesno') ['ja', 'nein'].forEach(function (v) { h += '<button class="chip ' + (w.answers[q.id] === v ? 'sel' : '') + '" data-act="wiz-ans" data-id="' + q.id + '" data-v="' + v + '">' + (v === 'ja' ? 'Ja' : 'Nein') + '</button>'; });
+      else q.options.forEach(function (o, i) { h += '<button class="chip ' + (String(w.answers[q.id]) === String(i) ? 'sel' : '') + '" data-act="wiz-ans" data-id="' + q.id + '" data-v="' + i + '">' + U.esc(o.label) + '</button>'; });
+      h += '</div>';
+    });
+    return h + '</section><div class="wnav"><button class="mini" data-act="wiz-back">◀ Zurueck</button><button class="bigbtn" data-act="wiz-next">Vermutung ▶</button></div>';
+  }
+  function wizHypo(w) {
+    var ranked = IR.framework.suggest(w.envId, w.impactIds, w.answers);
+    if (!w.hypId && ranked.length) w.hypId = ranked[0].h.id;
+    var max = ranked.length ? ranked[0].score : 1;
+    var h = '<section class="card"><h2>4. Erste Vermutung</h2><p class="muted">Vorschlag auf Basis deiner Angaben – frei anpassbar.</p>';
+    ranked.forEach(function (r) {
+      h += '<button class="hypitem ' + (w.hypId === r.h.id ? 'sel' : '') + '" data-act="wiz-hyp" data-id="' + r.h.id + '">' +
+        '<div class="row"><strong>' + U.esc(r.h.name) + '</strong><span class="badge">' + r.score + '</span></div>' +
+        '<div class="bar"><div style="width:' + Math.round(r.score * 100 / max) + '%"></div></div>' +
+        '<small>' + U.esc(r.h.tech) + '</small></button>';
+    });
+    if (!ranked.length) h += '<p class="muted">Keine eindeutige Vermutung – generisches Playbook nutzen.</p>';
+    return h + '</section><div class="wnav"><button class="mini" data-act="wiz-back">◀ Zurueck</button><button class="bigbtn" data-act="wiz-generate">Playbook erzeugen ✓</button></div>';
+  }
+
   function viewPlaybook() {
-    var pb = IR.engine.playbook(c.playbookId);
+    var pb = IR.Case.playbook(c);
     var pr = IR.engine.progress(pb, c);
     var h = '<section class="card meta">' +
       '<div class="row"><label>Organisation</label><input data-meta="org" value="' + U.esc(c.org) + '"></div>' +
@@ -134,6 +198,11 @@
       return head + '<div class="steptop">' + btn2 + '<strong>' + U.esc(s.title) + '</strong></div>' + body +
         '<button class="mini" data-act="comm-open" data-id="' + s.commsId + '">Vorlage oeffnen</button></div>';
     }
+    if (s.type === 'tool') {
+      var btn3 = '<button class="chk" data-act="toggle" data-id="' + s.id + '">' + (checked ? '✓' : '') + '</button>';
+      return head + '<div class="steptop">' + btn3 + '<strong>' + U.esc(s.title) + '</strong></div>' + body +
+        '<button class="mini" data-act="tool-open" data-id="' + (s.toolId || '') + '">Tool oeffnen</button></div>';
+    }
     return head + '<strong>' + U.esc(s.title) + '</strong>' + body + '</div>';
   }
 
@@ -166,7 +235,7 @@
   }
 
   function viewComms() {
-    var ctx = { org: c.org, responder: c.responder, date: U.fmtTs(U.nowISO()), summary: c.answers['summary'] || (IR.engine.playbook(c.playbookId) || {}).oneLiner || '' };
+    var ctx = { org: c.org, responder: c.responder, date: U.fmtTs(U.nowISO()), summary: c.answers['summary'] || (IR.Case.playbook(c) || {}).oneLiner || '' };
     var h = '<section class="card"><h2>Krisenkommunikation</h2><p class="muted">Vorlagen mit Falldaten – pruefen, anpassen, ueber verifizierten Kanal senden.</p></section>';
     Object.keys(IR.comms).forEach(function (k) {
       var t = IR.comms[k];
@@ -185,7 +254,7 @@
   function viewTools() {
     var h = '<section class="card"><h2>Forensik-Toolkit</h2><p class="muted">Read-only Triage/Sicherung. Auf den USB-Stick legen, am Zielsystem ausfuehren.</p></section>';
     IR.toolkit.forEach(function (t) {
-      h += '<section class="card tool"><div class="row"><strong>' + U.esc(t.name) + '</strong><span class="badge">' + U.esc(t.os) + '</span></div>' +
+      h += '<section class="card tool" id="tool-' + U.esc(t.id) + '"><div class="row"><strong>' + U.esc(t.name) + '</strong><span class="badge">' + U.esc(t.os) + '</span></div>' +
         '<p>' + U.esc(t.purpose) + '</p><small class="warn">' + U.esc(t.safety) + '</small>' +
         '<details><summary>Skript anzeigen (' + U.esc(t.filename) + ')</summary><pre class="code">' + U.esc(t.script) + '</pre></details>' +
         '<div class="row"><button class="mini" data-act="tool-copy" data-id="' + t.id + '">Kopieren</button>' +
@@ -214,9 +283,21 @@
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
     var act = b.dataset.act, id = b.dataset.id;
+    // ---- Assistent ----
+    if (act === 'wiz-start') { state.wiz = { step: 0, q: '', envId: null, impactIds: [], answers: {}, hypId: null }; state.view = 'wizard'; return render(); }
+    if (act === 'wiz-cancel') { state.wiz = null; state.view = 'home'; return render(); }
+    if (act === 'wiz-env') { wiz().envId = id; return render(); }
+    if (act === 'wiz-impact') { var ii = wiz().impactIds, k = ii.indexOf(id); if (k >= 0) ii.splice(k, 1); else ii.push(id); return render(); }
+    if (act === 'wiz-ans') { wiz().answers[id] = b.dataset.v; wiz().hypId = null; return render(); }
+    if (act === 'wiz-hyp') { wiz().hypId = id; return render(); }
+    if (act === 'wiz-next') { wiz().step++; return render(); }
+    if (act === 'wiz-back') { wiz().step = Math.max(0, wiz().step - 1); return render(); }
+    if (act === 'wiz-generate') { return wizGenerate(); }
+    if (act === 'tool-open') { go('tools'); setTimeout(function () { var el = document.getElementById('tool-' + id); if (el) el.scrollIntoView(); }, 50); return; }
     if (act === 'new') {
       var pb = IR.engine.playbook(id);
       var nc = IR.Case.create({ playbookId: id, title: pb.title, sector: pb.category, classification: 'TLP:AMBER' });
+      nc.playbook = pb;
       IR.Case.log(nc, 'note', 'Fall eroeffnet (' + pb.title + ')');
       IR.store.save(nc); setCase(nc.id);
     } else if (act === 'open') { setCase(id); }
@@ -263,7 +344,11 @@
   }
 
   document.addEventListener('input', function (e) {
-    var t = e.target; if (!c) return;
+    var t = e.target;
+    // Assistent (kein Fall aktiv)
+    if (t.id === 'wizq') { wiz().q = t.value; var pos = t.selectionStart; render(); var e2 = document.getElementById('wizq'); if (e2) { e2.focus(); try { e2.setSelectionRange(pos, pos); } catch (_) {} } return; }
+    if (t.dataset.wizans != null) { wiz().answers[t.dataset.wizans] = t.value; return; }
+    if (!c) return;
     if (t.dataset.answer != null) { c.answers[t.dataset.answer] = t.value; save(); }
     else if (t.dataset.meta) { c[t.dataset.meta] = t.value; $('#caseTitle').textContent = c.title; $('#caseTag').textContent = c.classification || ''; save(); }
     else if (t.dataset.ev) { var ev = c.evidence.filter(function (x) { return x.id === t.dataset.ev; })[0]; if (ev) { ev[t.dataset.k] = t.value; save(); } }
@@ -272,10 +357,26 @@
     var t = e.target; if (c && t.dataset.meta) { c[t.dataset.meta] = t.value; save(); render(); }
   });
 
+  function wizGenerate() {
+    var w = wiz();
+    var ranked = IR.framework.suggest(w.envId, w.impactIds, w.answers);
+    var hypId = w.hypId || (ranked[0] && ranked[0].h.id) || 'endpoint_malware';
+    var sel = { envId: w.envId, impactIds: w.impactIds.slice(), hypothesisId: hypId, answers: w.answers };
+    var pb = IR.framework.buildPlaybook(sel);
+    var env = IR.catalog.env(w.envId) || { name: '' };
+    var nc = IR.Case.create({ playbookId: pb.id, title: pb.title, sector: pb.category, classification: 'TLP:AMBER' });
+    nc.playbook = pb; nc.selection = sel;
+    Object.keys(w.answers).forEach(function (k) { nc.answers[k] = w.answers[k]; });
+    if (w.answers.q_what) nc.answers['summary'] = w.answers.q_what;
+    var ev = IR.qeval(w.answers); Object.keys(ev.flags).forEach(function (k) { nc.flags[k] = ev.flags[k]; });
+    IR.Case.log(nc, 'note', 'Fall via Assistent erzeugt (' + env.name + ' · ' + pb.category + ')');
+    IR.store.save(nc); state.wiz = null; setCase(nc.id);
+  }
+
   /* ------------------------------------------------------------- Helpers */
-  function ctxNow() { return { org: c.org, responder: c.responder, date: U.fmtTs(U.nowISO()), summary: c.answers['summary'] || (IR.engine.playbook(c.playbookId) || {}).oneLiner || '' }; }
+  function ctxNow() { return { org: c.org, responder: c.responder, date: U.fmtTs(U.nowISO()), summary: c.answers['summary'] || (IR.Case.playbook(c) || {}).oneLiner || '' }; }
   function tool(id) { return IR.toolkit.filter(function (t) { return t.id === id; })[0]; }
-  function allSteps() { var pb = IR.engine.playbook(c.playbookId), a = []; pb.phases.forEach(function (p) { (p.steps || []).forEach(function (s) { a.push(s); }); }); return a; }
+  function allSteps() { var pb = IR.Case.playbook(c), a = []; pb.phases.forEach(function (p) { (p.steps || []).forEach(function (s) { a.push(s); }); }); return a; }
   function findStep(id) { return allSteps().filter(function (s) { return s.id === id; })[0]; }
   function stepTitle(id) { var s = findStep(id); return s ? s.title : id; }
   function markCommsStep(commsId) { allSteps().forEach(function (s) { if (s.type === 'comms' && s.commsId === commsId) c.checks[s.id] = true; }); }
