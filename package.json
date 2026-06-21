@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Gefuehrtes, playbook-basiertes Incident-Response-Tool (offline-faehig, PWA/Web/USB).",
   "scripts": {
-    "test": "node tests/run.js && node tests/ui.js",
+    "test": "node tests/run.js && node tests/ui.js && bash tests/control-server.sh",
     "tools": "node tools/export-tools.js",
     "cards": "node build/make-cards.js",
     "release": "bash build/make-release.sh"

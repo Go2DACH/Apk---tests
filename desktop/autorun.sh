@@ -14,6 +14,7 @@ while true; do
   4) Linux offline sammeln               (collect-linux-offline.sh)
   5) Geraete anzeigen (lsblk)
   6) IR-Pilot erneut oeffnen
+  7) Smartphone-Steuerung starten   (ohne Tastatur, control-server)
   0) Ende
 M
   read -rp "Auswahl: " a
@@ -24,6 +25,8 @@ M
     4) read -rp "Mount: " m; read -rp "Ausgabe: " o; sudo "$HERE/collect-linux-offline.sh" "$m" "$o" ;;
     5) lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT ;;
     6) open_app ;;
+    7) echo "Smartphone per USB-Ethernet/WLAN verbinden, dann angezeigte URL+Token im Handy-Browser oeffnen. Strg+C beendet."
+       sudo IR_EVIDENCE="${IR_EVIDENCE:-$HERE/../evidence}" python3 "$HERE/control-server.py" ;;
     0) exit 0 ;;
   esac
 done

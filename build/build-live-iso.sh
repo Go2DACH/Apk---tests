@@ -42,6 +42,26 @@ Exec=bash -c 'xdg-open /opt/ir-pilot/index.html'
 X-GNOME-Autostart-enabled=true
 EOF
 
+# Smartphone-Steuerung: Control-Server als systemd-Dienst (headless, ohne Tastatur)
+mkdir -p config/includes.chroot/etc/systemd/system
+cat > config/includes.chroot/etc/systemd/system/ir-control.service <<'EOF'
+[Unit]
+Description=IR-Pilot Control-Server (Boot-Stick vom Smartphone steuern)
+After=network.target
+
+[Service]
+Type=simple
+Environment=IR_APP=/opt/ir-pilot
+Environment=IR_EVIDENCE=/evidence
+Environment=IR_PORT=8080
+ExecStartPre=/bin/mkdir -p /evidence
+ExecStart=/usr/bin/python3 /opt/ir-pilot/desktop/control-server.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 # Hook: Auto-Mount global deaktivieren (Forensik!)
 mkdir -p config/hooks/live
 cat > config/hooks/live/9000-forensic.hook.chroot <<'EOF'
@@ -51,7 +71,9 @@ set -e
 systemctl disable udisks2 2>/dev/null || true
 echo 'vm.swappiness=0' >> /etc/sysctl.conf
 ln -sf /opt/ir-pilot/desktop/autorun.sh /usr/local/bin/ir-desktop 2>/dev/null || true
-chmod +x /opt/ir-pilot/desktop/*.sh /opt/ir-pilot/mobile/*.sh /opt/ir-pilot/tools/*.sh 2>/dev/null || true
+chmod +x /opt/ir-pilot/desktop/*.sh /opt/ir-pilot/desktop/*.py /opt/ir-pilot/mobile/*.sh /opt/ir-pilot/tools/*.sh 2>/dev/null || true
+# Control-Server-Dienst aktivieren (Smartphone-Fernsteuerung ohne Tastatur)
+systemctl enable ir-control.service 2>/dev/null || true
 # CyberChef offline mit ins Image holen (best effort, Internet im Build noetig)
 bash /opt/ir-pilot/tools/fetch-cyberchef.sh /opt/ir-pilot/tools/cyberchef 2>/dev/null || true
 EOF

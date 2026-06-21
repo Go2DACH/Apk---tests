@@ -26,9 +26,10 @@ Warum die APK nötig ist (Browser-Sandbox):
 | Aufgabe | Web/PWA | APK (nativ) |
 |---|---|---|
 | Playbook-UI, Fälle, Berichte, Comms, DNS/DoH | ✅ | ✅ |
-| **WiFi/Ethernet-Mitschnitt (pcap)** | ❌ | ✅ ohne Root via VpnService (PCAPdroid); echtes TAP an USB-Ethernet = Root/tcpdump |
+| **WiFi/Ethernet-Mitschnitt (pcap)** | ❌ | ✅ ohne Root via VpnService (PCAPdroid, nur eigener Traffic); echtes TAP/fremde Hosts = tcpdump auf dem **Boot-Stick** (dort root) |
 | **Netz-Scan / Host-Discovery** | ❌ | ✅ gebündeltes nmap |
 | **Boot-Stick schreiben** | ❌ | ✅ ohne Root (USB-Host, EtchDroid) – ISO bauen bleibt Linux/CI |
+| **Imaging/Triage am Ziel ohne Tastatur** | ❌ | per **Boot-Stick + `control-server.py`** vom Handy-Browser (kein Root am Handy) |
 | Datei auf USB/Downloads sichern | nur Download | ✅ MediaStore/USB |
 
 Die App erkennt zur Laufzeit (`IR.native`), ob sie in der APK läuft: dann echte
@@ -148,6 +149,18 @@ in der App unter **Bericht → Daten importieren (JSON)** einliest (oder
   Amcache, Prefetch, Tasks, NTUSER → Triage-Paket + Manifest.
 - `collect-linux-offline.sh` — `/etc`, Logs, Cron, SSH-Keys, History → Paket.
 - `autorun.sh` — Starter-Menü auf dem Live-USB (öffnet IR-Pilot + geführte Sammlung).
+- `control-server.py` — **Boot-Stick ohne Tastatur vom Smartphone steuern.** Läuft
+  auf dem gebooteten Forensik-Linux (Stdlib, kein Root am Handy nötig). Zeigt
+  URL + Token; im Handy-Browser öffnest du eine Touch-Oberfläche für Geräteliste,
+  RO-Mount, Imaging, Windows/Linux-Triage, Manifest und Netzwerk-Capture — und die
+  volle App unter `/app/`. Startet automatisch als `ir-control.service` oder über
+  `autorun.sh` (Punkt 7). Token-geschützt, nur im vertrauenswürdigen Analyse-Netz.
+
+### Ohne Root & ohne Tastatur — `mobile/hid-keyboard.md`
+Die App läuft **ohne Root**. Wenn am Zielrechner keine Tastatur ist: den Stick
+booten und per **USB-Ethernet/WLAN** vom Handy fernsteuern (`control-server.py`).
+Handy-als-USB-Tastatur (HID-Gadget) braucht **Root am Handy** und ist daher nicht
+der Standardweg — die ehrliche Abwägung steht in `mobile/hid-keyboard.md`.
 
 ### Bootbares Forensik-Linux — `build/`
 - `build-live-iso.sh` — baut mit **Debian live-build** ein bootbares Forensik-Linux
@@ -175,7 +188,7 @@ materialisiert die Skripte nach `tools/`.
 ## Tests
 
 ```bash
-npm test          # Logik (tests/run.js) + UI-Smoke mit jsdom (tests/ui.js)
+npm test          # Logik (run.js) + UI-Smoke (ui.js) + Control-Server (control-server.sh)
 ```
 
 ## Projektstruktur
@@ -190,13 +203,13 @@ data/playbooks.js       9 Fälle + generischer Lifecycle
 data/comms.js           Krisenkommunikation + Meldepflichten
 data/toolkit.js         Forensik-Skripte (Quelle)
 tools/                  materialisierte Triage-Skripte
-mobile/                 Smartphone-Skripte (Termux)
-desktop/                Offline-Collection vom Live-USB
+mobile/                 Smartphone-Skripte (Termux) + hid-keyboard.md (no-root/Tastatur)
+desktop/                Offline-Collection vom Live-USB + control-server.py
 build/                  Live-ISO-Builder, Toolkit-USB, Einsatzkarten/Screenshots
 dist/                   erzeugte PDFs/Screenshots
 manifest.webmanifest    PWA-Manifest
 sw.js                   Service Worker (Offline-Cache)
-tests/                  run.js (Logik), ui.js (jsdom)
+tests/                  run.js (Logik), ui.js (jsdom), control-server.sh (Stick-Steuerung)
 ```
 
 ## Hinweis / Scope
