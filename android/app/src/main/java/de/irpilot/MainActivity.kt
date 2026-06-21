@@ -1,17 +1,25 @@
 package de.irpilot
 
+import android.content.Intent
+import android.net.Uri
 import android.net.http.SslError
 import android.os.Bundle
+import android.provider.MediaStore
 import android.webkit.JsPromptResult
 import android.webkit.JsResult
 import android.webkit.SslErrorHandler
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import java.io.File
 
 /**
  * IR-Pilot Android-Huelle: laedt die PWA (gebuendelt unter assets/www) im WebView
@@ -21,6 +29,25 @@ import androidx.appcompat.app.AppCompatActivity
 class MainActivity : AppCompatActivity() {
 
     private lateinit var web: WebView
+
+    // Datei-/Kamera-Auswahl fuer <input type=file> (Foto-Beweise)
+    private var fileCb: ValueCallback<Array<Uri>>? = null
+    private var cameraUri: Uri? = null
+    private val fileChooser = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res: ActivityResult ->
+        val cb = fileCb; fileCb = null
+        if (cb == null) return@registerForActivityResult
+        var results: Array<Uri>? = null
+        if (res.resultCode == RESULT_OK) {
+            val data = res.data
+            if (data?.dataString != null || data?.clipData != null) {
+                results = WebChromeClient.FileChooserParams.parseResult(res.resultCode, data)
+            } else if (cameraUri != null) {
+                results = arrayOf(cameraUri!!)   // Kamera-Aufnahme
+            }
+        }
+        cb.onReceiveValue(results ?: arrayOf())
+        cameraUri = null
+    }
 
     @Suppress("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,6 +100,32 @@ class MainActivity : AppCompatActivity() {
                     .setNegativeButton("Abbrechen") { _, _ -> r.cancel() }
                     .setOnCancelListener { r.cancel() }.show()
                 return true
+            }
+            // <input type=file> (Foto aufnehmen / aus Galerie/Datei) – ohne dies tut
+            // der Button in der WebView nichts. Bietet Kamera + Dateiauswahl an.
+            override fun onShowFileChooser(view: WebView?, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                fileCb?.onReceiveValue(null); fileCb = callback; cameraUri = null
+                val content = try { params.createIntent() } catch (e: Exception) { Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*") }
+                val accept = params.acceptTypes?.joinToString(",") ?: ""
+                var camera: Intent? = null
+                if (accept.isEmpty() || accept.contains("image") || accept.contains("*/*")) {
+                    try {
+                        val photo = File.createTempFile("ir_photo_", ".jpg", cacheDir)
+                        cameraUri = FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", photo)
+                        camera = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+                            .putExtra(MediaStore.EXTRA_OUTPUT, cameraUri)
+                            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    } catch (e: Exception) { cameraUri = null; camera = null }
+                }
+                val chooser = Intent(Intent.ACTION_CHOOSER)
+                    .putExtra(Intent.EXTRA_INTENT, content)
+                    .putExtra(Intent.EXTRA_TITLE, "Foto aufnehmen oder Datei wählen")
+                if (camera != null) chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(camera))
+                return try { fileChooser.launch(chooser); true } catch (e: Exception) {
+                    fileCb = null
+                    android.widget.Toast.makeText(this@MainActivity, "Auswahl nicht möglich: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                    false
+                }
             }
         }
         web.addJavascriptInterface(IRBridge(this) { web }, "AndroidIR")
