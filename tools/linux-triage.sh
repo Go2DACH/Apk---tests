@@ -7,7 +7,7 @@ mkdir -p "$OUT"; echo "[*] Triage -> $OUT"
 ps auxww            > "$OUT/processes.txt" 2>&1
 (ss -tupan || netstat -tupan) > "$OUT/sockets.txt" 2>&1
 (lsof -nP || true)  > "$OUT/openfiles.txt" 2>&1
-ip a; ip r; arp -an > "$OUT/network.txt" 2>&1
+{ ip a; ip r; arp -an; } > "$OUT/network.txt" 2>&1
 (crontab -l; ls -la /etc/cron*; cat /etc/crontab) > "$OUT/cron.txt" 2>&1
 systemctl list-units --type=service --state=running > "$OUT/services.txt" 2>&1
 (last -Faiw; lastb -Faiw 2>/dev/null) > "$OUT/logins.txt" 2>&1

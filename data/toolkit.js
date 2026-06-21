@@ -56,7 +56,7 @@
 "ps auxww            > \"$OUT/processes.txt\" 2>&1\n" +
 "(ss -tupan || netstat -tupan) > \"$OUT/sockets.txt\" 2>&1\n" +
 "(lsof -nP || true)  > \"$OUT/openfiles.txt\" 2>&1\n" +
-"ip a; ip r; arp -an > \"$OUT/network.txt\" 2>&1\n" +
+"{ ip a; ip r; arp -an; } > \"$OUT/network.txt\" 2>&1\n" +
 "(crontab -l; ls -la /etc/cron*; cat /etc/crontab) > \"$OUT/cron.txt\" 2>&1\n" +
 "systemctl list-units --type=service --state=running > \"$OUT/services.txt\" 2>&1\n" +
 "(last -Faiw; lastb -Faiw 2>/dev/null) > \"$OUT/logins.txt\" 2>&1\n" +
