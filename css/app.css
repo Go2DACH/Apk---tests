@@ -100,6 +100,9 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
   body.printing #printroot .pimg{width:46%;margin:0;page-break-inside:avoid}
   body.printing #printroot .pimg img{width:100%;border:1px solid #ccd}
   body.printing #printroot figcaption{font-size:11px;color:#556}
+  body.printing #printroot .ttp h1{color:#123e63;font-size:20px}
+  body.printing #printroot .ttp h2{color:#1f4e79}body.printing #printroot .ttp h3{color:#22425e}
+  body.printing #printroot hr{border:0;border-top:2px solid #1f4e79;margin:14px 0;page-break-before:always}
   @page{margin:14mm}
 }
 .phgrid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
@@ -112,6 +115,11 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
 .msg.ai{align-self:flex-start;background:#0c2944;border:1px solid var(--line)}
 .msg.ai p:first-child{margin-top:0}.msg.ai p:last-child{margin-bottom:0}
 textarea#asstInput{width:100%;min-height:60px}
+.inject-sit{background:#0c2944;border-left:3px solid var(--acc);border-radius:8px;padding:10px;margin:6px 0}
+.injprompts{margin:4px 0 8px 18px}.injprompts li{margin:4px 0}
+.ttrate{margin:8px 0}.pbcard.sel,.hypitem.sel{outline:2px solid var(--acc)}
+.tt-r0{color:var(--crit);font-weight:700}.tt-r1{color:var(--high);font-weight:700}
+.tt-r2{color:var(--ok);font-weight:700}.tt-r3{color:var(--acc);font-weight:700}
 .strow{padding:4px 0;border-top:1px solid var(--line);font-size:13.5px}.strow:first-child{border-top:0}
 .st-ok{color:var(--ok);font-weight:700}.st-bad{color:var(--crit);font-weight:700}
 .ok-note{color:var(--ok)}

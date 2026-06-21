@@ -161,6 +161,20 @@ function run() {
     ok(IR.assistant.enabled() === true, 'Assistent-Key gespeichert');
     IR.assistant.setConfig({ apiKey: '' });
 
+    // ---- Tabletop-Übung ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="goto-tabletop"]').click();
+    ok(!!d.querySelector('[data-act="tt-aud"]'), 'Tabletop: Zielgruppen-Auswahl');
+    d.querySelector('[data-act="tt-aud"][data-id="mgmt"]').click();
+    d.querySelector('[data-act="tt-next"]').click();
+    ok(d.querySelectorAll('.pbcard').length === 9, 'Tabletop: 9 Szenarien');
+    d.querySelector('[data-act="tt-scn"][data-id="ransomware"]').click();
+    d.querySelector('[data-act="tt-start"]').click();
+    ok(!!d.querySelector('[data-act="tt-fwd"]') && /Inject 1\//.test(d.querySelector('#app').innerHTML), 'Tabletop: Durchführung (Inject 1)');
+    d.querySelector('[data-act="tt-rate"][data-v="2"]').click();
+    ok(!!d.querySelector('.chip.sel'), 'Tabletop: Bewertung gesetzt');
+    ok(typeof IR.tabletop.reportBody === 'function' && /IR-Plan/.test(IR.tabletop.reportBody(IR.tabletop.build({ scenarioId: 'ransomware', audience: 'mgmt' }), {})), 'Tabletop: Report-Body (IR-Plan) erzeugt');
+
     // ---- Selbsttest ----
     d.querySelector('#home').click();
     d.querySelector('[data-act="goto-selftest"]').click();

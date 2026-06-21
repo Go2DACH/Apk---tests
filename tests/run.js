@@ -13,6 +13,7 @@ require('../data/questions.js');
 require('../js/framework.js');
 require('../data/playbooks.js');
 require('../js/report.js');
+require('../js/tabletop.js');
 var IR = globalThis.IR;
 
 var fails = 0, passes = 0;
@@ -325,6 +326,29 @@ group('KI-Assistent (Request)', function () {
   ok(typeof body.system === 'string' && /SIPROTEC/.test(body.system), 'System-Prompt mit OT/SIPROTEC');
   ok(body.max_tokens >= 2048, 'max_tokens ausreichend fuer lange Antworten');
   ok(body.messages.length === 1 && body.messages[0].role === 'user', 'Nachricht im Body');
+});
+
+group('Tabletop-Übung', function () {
+  var T = IR.tabletop;
+  ok(T.scenarios().length === 9, '9 Szenarien');
+  ok(T.audiences.length === 3, '3 Zielgruppen (mgmt/tech/mixed)');
+  var mgmt = T.build({ scenarioId: 'ransomware', audience: 'mgmt' });
+  var tech = T.build({ scenarioId: 'ransomware', audience: 'tech' });
+  var mix = T.build({ scenarioId: 'ransomware', audience: 'mixed' });
+  ok(mgmt.injects.length >= 5 && tech.injects.length >= 5, 'mgmt/tech haben Injects');
+  ok(mix.injects.length >= mgmt.injects.length, 'mixed >= mgmt');
+  ok(mgmt.injects.every(function (i) { return i.situation.indexOf('{oneLiner}') < 0; }), 'Szenario-Kontext eingesetzt');
+  // scenario-conditional inject
+  ok(mgmt.injects.some(function (i) { return i.id === 'ransom'; }), 'Ransom-Inject bei Ransomware');
+  ok(!T.build({ scenarioId: 'phishing-wave', audience: 'mgmt' }).injects.some(function (i) { return i.id === 'ransom'; }), 'kein Ransom-Inject bei Phishing');
+  // scoring + outputs
+  var rec = {}; mix.injects.forEach(function (i, n) { rec[i.id] = { rating: n % 4, response: 'r' + n }; });
+  var sc = T.score(mix, rec);
+  ok(sc.rated === mix.injects.length && sc.pct >= 0 && sc.pct <= 100, 'Score berechnet (' + sc.pct + '%)');
+  ok(T.improvements(mix, rec).length > 0, 'Verbesserungen aus schwachen Injects');
+  var body = T.reportBody(mix, rec);
+  ok(/IR-Plan/.test(body) && /Man.{0,2}verkritik/.test(body) && /Verbesserungen/.test(body), 'Report enthaelt alle 3 Teile');
+  ok(/Ransomware/.test(body), 'Report bezieht Szenario ein');
 });
 
 group('Speicher-Quota (Daten-Sicherheit)', function () {

@@ -49,6 +49,7 @@
       : state.view === 'assistant' ? viewAssistant()
       : state.view === 'sources' ? viewSources()
       : state.view === 'selftest' ? viewSelftest()
+      : state.view === 'tabletop' ? viewTabletop()
       : state.view === 'tools' ? viewTools() : viewHome());
     var v = state.view;
     if (v === 'home') root.innerHTML = viewHome();
@@ -60,6 +61,7 @@
     else if (v === 'assistant') root.innerHTML = viewAssistant();
     else if (v === 'sources') root.innerHTML = viewSources();
     else if (v === 'selftest') root.innerHTML = viewSelftest();
+    else if (v === 'tabletop') root.innerHTML = viewTabletop();
     else if (v === 'pb') root.innerHTML = viewPlaybook();
     else if (v === 'evidence') root.innerHTML = viewEvidence();
     else if (v === 'ioc') root.innerHTML = viewIoc();
@@ -81,6 +83,7 @@
       '<button class="mini" data-act="goto-dashboard">📊 Live-Dashboard</button>' +
       '<button class="mini" data-act="goto-cloud">☁️ Cloud &amp; Veroeffentlichen</button>' +
       '<button class="mini" data-act="goto-assistant">🤖 Assistent (KI-Fragen)</button>' +
+      '<button class="mini" data-act="goto-tabletop">🎯 Tabletop-Übung</button>' +
       '<button class="mini" data-act="goto-selftest">🧪 Selbsttest</button></section>';
     h += '<section class="card"><h2>Schnellstart (Beispiele)</h2><div class="pbgrid">';
     IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).forEach(function (p) {
@@ -505,6 +508,75 @@
     return h;
   }
 
+  /* ------------------------------------------------------ Tabletop-Übung */
+  function tt() { return state.tt || (state.tt = { step: 0, audience: null, scenarioId: null, idx: 0, records: {}, meta: { date: U.fmtTs(U.nowISO()) } }); }
+  function ttBuild() { state.ttEx = IR.tabletop.build({ scenarioId: tt().scenarioId, audience: tt().audience, meta: tt().meta }); return state.ttEx; }
+  function viewTabletop() {
+    var w = tt(), names = ['Zielgruppe', 'Szenario', 'Durchführung', 'Auswertung'];
+    var head = '<section class="card"><div class="row"><h2>🎯 Tabletop-Übung</h2>' + backLink() + '</div>' +
+      '<div class="wizsteps">' + names.map(function (t, i) { return '<span class="' + (i === w.step ? 'on' : (i < w.step ? 'done' : '')) + '">' + (i + 1) + '. ' + t + '</span>'; }).join('') + '</div></section>';
+    return head + [ttAudience, ttScenario, ttRun, ttResult][w.step](w);
+  }
+  function ttAudience(w) {
+    var h = '<section class="card"><h2>Wen übt ihr?</h2><p class="muted">Bestimmt die Injects (Führung vs. Technik).</p><div class="chips col">';
+    IR.tabletop.audiences.forEach(function (a) {
+      h += '<button class="hypitem ' + (w.audience === a.id ? 'sel' : '') + '" data-act="tt-aud" data-id="' + a.id + '"><div class="row"><strong>' + U.esc(a.name) + '</strong></div><small>' + U.esc(a.desc) + '</small></button>';
+    });
+    return h + '</div></section><div class="wnav"><span></span><button class="bigbtn" data-act="tt-next"' + (w.audience ? '' : ' disabled') + '>Weiter ▶</button></div>';
+  }
+  function ttScenario(w) {
+    var h = '<section class="card"><h2>Szenario wählen</h2><div class="pbgrid">';
+    IR.tabletop.scenarios().forEach(function (s) {
+      h += '<button class="pbcard ' + (w.scenarioId === s.id ? 'sel' : '') + '" data-act="tt-scn" data-id="' + s.id + '">' +
+        '<span class="sev sev-' + sevClass(s.severity) + '">' + U.esc(s.severity) + '</span><strong>' + U.esc(s.title) + '</strong><small>' + U.esc(s.category) + '</small><em>' + U.esc(s.oneLiner) + '</em></button>';
+    });
+    h += '</div></section><section class="card"><h3>Rahmen (optional)</h3>' +
+      '<div class="row"><label>Organisation</label><input data-ttmeta="org" value="' + U.esc(w.meta.org || '') + '"></div>' +
+      '<div class="row"><label>Übungsleitung</label><input data-ttmeta="facilitator" value="' + U.esc(w.meta.facilitator || '') + '"></div>' +
+      '<div class="row"><label>Teilnehmer</label><input data-ttmeta="participants" value="' + U.esc(w.meta.participants || '') + '"></div></section>' +
+      '<div class="wnav"><button class="mini" data-act="tt-back">◀ Zurück</button><button class="bigbtn" data-act="tt-start"' + (w.scenarioId ? '' : ' disabled') + '>Übung starten ▶</button></div>';
+    return h;
+  }
+  function ttRun(w) {
+    var ex = state.ttEx || ttBuild(); var n = ex.injects.length;
+    if (!n) return '<section class="card"><p class="muted">Keine passenden Injects.</p></section>';
+    var i = ex.injects[w.idx], rec = w.records[i.id] || (w.records[i.id] = {});
+    var h = '<section class="card"><div class="row"><span class="badge">Inject ' + (w.idx + 1) + '/' + n + '</span><span class="badge">' + U.esc(i.phase) + '</span></div>' +
+      '<div class="progress"><div style="width:' + Math.round((w.idx + 1) / n * 100) + '%"></div></div>' +
+      '<h2>' + U.esc(i.title) + '</h2><p class="inject-sit">' + U.esc(i.situation) + '</p>' +
+      '<strong>Diskussion / Entscheidung:</strong><ul class="injprompts">' + i.prompts.map(function (p) { return '<li>' + U.esc(p) + '</li>'; }).join('') + '</ul>' +
+      '<details><summary>Erwartete Punkte (für die Leitung)</summary><ul>' + i.good.map(function (g) { return '<li>' + U.esc(g) + '</li>'; }).join('') + '</ul></details>';
+    h += '<div class="ttrate"><small>Bewertung der Reaktion:</small><div class="row wrap">' +
+      IR.tabletop.RATINGS.map(function (r) { return '<button class="chip ' + (rec.rating === r.v ? 'sel' : '') + '" data-act="tt-rate" data-id="' + i.id + '" data-v="' + r.v + '">' + r.v + ' · ' + U.esc(r.label) + '</button>'; }).join('') + '</div></div>';
+    h += '<textarea data-ttresp="' + i.id + '" placeholder="Reaktion / Beschluss des Teams …">' + U.esc(rec.response || '') + '</textarea>' +
+      '<input data-ttnote="' + i.id + '" placeholder="Notiz / eigener Verbesserungspunkt (optional)" value="' + U.esc(rec.flagged || '') + '">';
+    h += '</section><div class="wnav"><button class="mini" data-act="tt-prev"' + (w.idx === 0 ? ' disabled' : '') + '>◀ Zurück</button>' +
+      '<button class="bigbtn" data-act="tt-fwd">' + (w.idx + 1 >= n ? 'Auswertung ▶' : 'Nächster Inject ▶') + '</button></div>';
+    return h;
+  }
+  function ttResult(w) {
+    var ex = state.ttEx || ttBuild(), sc = IR.tabletop.score(ex, w.records), imp = IR.tabletop.improvements(ex, w.records);
+    var h = '<section class="card"><div class="row"><h2>Auswertung</h2><span class="badge">' + sc.pct + ' % · Ø ' + sc.avg + '/3</span></div>' +
+      '<p class="muted">' + U.esc(IR.tabletop.audName(ex.audience)) + ' · ' + U.esc(ex.title) + ' · ' + sc.rated + '/' + sc.total + ' Injects bewertet</p>' +
+      '<button class="bigbtn" data-act="tt-pdf">📄 IR-Plan + Manöverkritik + Verbesserungen (PDF)</button></section>';
+    h += '<section class="card"><h3>Technische &amp; organisatorische Verbesserungen (' + imp.length + ')</h3>';
+    if (!imp.length) h += '<p class="muted">Keine offenen Punkte – stark!</p>';
+    imp.forEach(function (x) { h += '<div class="frow">→ ' + U.esc(x.text) + ' <small class="muted">(' + U.esc(x.from) + ')</small></div>'; });
+    h += '</section><section class="card"><h3>Bewertung je Inject</h3>';
+    ex.injects.forEach(function (i) { var r = w.records[i.id] || {}; var lab = r.rating != null ? IR.tabletop.RATINGS[r.rating] : null;
+      h += '<div class="strow"><span class="' + (lab ? 'tt-' + lab.cls : 'muted') + '">' + (lab ? lab.v : '–') + '</span> ' + U.esc(i.title) + ' <small class="muted">' + U.esc(i.phase) + '</small></div>'; });
+    h += '</section><div class="wnav"><button class="mini" data-act="tt-restart">Neue Übung</button>' + backLink() + '</div>';
+    return h;
+  }
+  function ttPdf() {
+    var ex = state.ttEx || ttBuild();
+    var root = document.getElementById('printroot') || (function () { var d = document.createElement('div'); d.id = 'printroot'; document.body.appendChild(d); return d; })();
+    root.innerHTML = IR.tabletop.reportBody(ex, tt().records);
+    document.body.classList.add('printing');
+    setTimeout(function () { IR.native.print(); setTimeout(function () { document.body.classList.remove('printing'); }, 1500); }, 250);
+    toast('Drucken → „Als PDF speichern"');
+  }
+
   /* ------------------------------------------------------------ Selbsttest */
   function viewSelftest() {
     var h = '<section class="card"><div class="row"><h2>🧪 Selbsttest</h2>' + backLink() + '</div>' +
@@ -852,6 +924,18 @@
       if (f) { var r = IR.sources.adopt(f); toast(r ? 'IDS übernommen – ggf. Token ergänzen' : 'schon vorhanden / Max erreicht'); render(); }
       return;
     }
+    // ---- Tabletop-Übung ----
+    if (act === 'goto-tabletop') { state.tt = null; state.ttEx = null; state.view = 'tabletop'; return render(); }
+    if (act === 'tt-aud') { tt().audience = id; return render(); }
+    if (act === 'tt-scn') { tt().scenarioId = id; return render(); }
+    if (act === 'tt-next') { tt().step++; return render(); }
+    if (act === 'tt-back') { tt().step = Math.max(0, tt().step - 1); return render(); }
+    if (act === 'tt-start') { ttBuild(); tt().idx = 0; tt().step = 2; return render(); }
+    if (act === 'tt-rate') { (tt().records[id] || (tt().records[id] = {})).rating = +b.dataset.v; return render(); }
+    if (act === 'tt-prev') { tt().idx = Math.max(0, tt().idx - 1); return render(); }
+    if (act === 'tt-fwd') { var ex = state.ttEx || ttBuild(); if (tt().idx + 1 >= ex.injects.length) { tt().step = 3; } else { tt().idx++; } return render(); }
+    if (act === 'tt-restart') { state.tt = null; state.ttEx = null; return render(); }
+    if (act === 'tt-pdf') { return ttPdf(); }
     // ---- Selbsttest ----
     if (act === 'goto-selftest') { state.view = 'selftest'; state.stResult = null; state.stNet = null; return render(); }
     if (act === 'st-run') { state.stResult = IR.selftest.run(); toast(state.stResult.fail === 0 ? 'Alles grün' : (state.stResult.fail + ' fehlgeschlagen')); return render(); }
@@ -1004,6 +1088,9 @@
     if (t.dataset.wizans != null) { wiz().answers[t.dataset.wizans] = t.value; return; }
     if (t.id === 'asstInput') { state.asstDraft = t.value; return; }
     if (t.id === 'srcSubnet') { state.srcSubnet = t.value; return; }
+    if (t.dataset.ttmeta != null) { tt().meta[t.dataset.ttmeta] = t.value; return; }
+    if (t.dataset.ttresp != null) { (tt().records[t.dataset.ttresp] || (tt().records[t.dataset.ttresp] = {})).response = t.value; return; }
+    if (t.dataset.ttnote != null) { (tt().records[t.dataset.ttnote] || (tt().records[t.dataset.ttnote] = {})).flagged = t.value; return; }
     if (!c) return;
     if (t.dataset.photo != null) { var pp = (c.photos || []).filter(function (x) { return x.id === t.dataset.photo; })[0]; if (pp) { pp.note = t.value; save(); } return; }
     if (t.dataset.answer != null) { c.answers[t.dataset.answer] = t.value; save(); }
