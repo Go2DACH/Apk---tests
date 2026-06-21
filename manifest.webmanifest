@@ -1,0 +1,14 @@
+{
+  "name": "IR-Pilot – Incident Response",
+  "short_name": "IR-Pilot",
+  "description": "Gefuehrtes, playbook-basiertes Incident-Response-Tool fuer den Einsatz (offline-faehig).",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1f33",
+  "theme_color": "#0b1f33",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

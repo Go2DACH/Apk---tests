@@ -1,0 +1,10 @@
+{
+  "name": "ir-pilot",
+  "version": "0.1.0",
+  "description": "Gefuehrtes, playbook-basiertes Incident-Response-Tool (offline-faehig, PWA/Web/USB).",
+  "scripts": {
+    "test": "node tests/run.js && node tests/ui.js",
+    "tools": "node tools/export-tools.js"
+  },
+  "license": "MIT"
+}
