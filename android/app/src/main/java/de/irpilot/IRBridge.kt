@@ -74,6 +74,18 @@ class IRBridge(private val act: AppCompatActivity, private val web: () -> WebVie
     @JavascriptInterface
     fun reloadData() = act.runOnUiThread { web().loadUrl(MainActivity.REMOTE_URL) }
 
+    /** Aktuelle WebView als PDF drucken (Android-Druckdialog -> "Als PDF speichern"). */
+    @JavascriptInterface
+    fun printPage() = act.runOnUiThread {
+        try {
+            val pm = act.getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
+            val adapter = web().createPrintDocumentAdapter("IR-Pilot-Report")
+            pm.print("IR-Pilot-Report", adapter, android.print.PrintAttributes.Builder().build())
+        } catch (e: Exception) {
+            toast("Drucken fehlgeschlagen: ${e.message}")
+        }
+    }
+
     /**
      * Eingebettetes Asset (z.B. das Werkzeug-Kit ir-pilot-kit.zip) nach Downloads
      * kopieren – damit der Boot-Stick/Windows-Teil direkt vom Handy auf USB landet.

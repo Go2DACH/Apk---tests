@@ -109,5 +109,29 @@
     }).join('\n');
   };
 
+  // Druckfertiges HTML (Report + Fotos) -> Browser/WebView "Drucken -> Als PDF speichern".
+  IR.report.printableHTML = function (c) {
+    var bodyHtml = U.md(IR.report.markdown(c));
+    var photos = (c.photos || []).map(function (p) {
+      return '<figure class="ph"><img src="' + (p.dataUrl || '') + '">' +
+        '<figcaption>' + U.esc(p.name) + (p.host ? ' · ' + U.esc(p.host) : '') +
+        (p.note ? ' – ' + U.esc(p.note) : '') + ' <span class="ts">' + U.fmtTs(p.ts) + '</span></figcaption></figure>';
+    }).join('');
+    var photoSec = photos ? '<h2>Fotos &amp; Screenshots (' + (c.photos || []).length + ')</h2><div class="phgrid">' + photos + '</div>' : '';
+    return '<!doctype html><html lang="de"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<title>Incident-Report – ' + U.esc(c.title) + '</title><style>' +
+      'body{font:13px/1.5 system-ui,Segoe UI,Roboto,sans-serif;color:#15212e;margin:24px;max-width:900px}' +
+      'h1{color:#123e63;font-size:22px;margin:0 0 6px}h2{color:#1f4e79;font-size:15px;border-bottom:2px solid #d7e3ef;padding-bottom:3px;margin:16px 0 6px}' +
+      'h3{font-size:13.5px;margin:10px 0 4px}code{background:#eef3f8;border:1px solid #dbe6f0;border-radius:4px;padding:1px 4px}' +
+      'table{border-collapse:collapse;width:100%}th,td{border:1px solid #c9d6e3;padding:4px 7px;text-align:left}th{background:#eaf1f8}' +
+      '.phgrid{display:flex;flex-wrap:wrap;gap:10px}.ph{margin:0;width:46%;page-break-inside:avoid}' +
+      '.ph img{width:100%;border:1px solid #c4d2e0;border-radius:6px}.ph figcaption{font-size:11px;color:#5a6b7c}' +
+      '.ts{color:#90a4b8}@page{margin:14mm}@media print{body{margin:0}}' +
+      '</style></head><body>' + bodyHtml + photoSec +
+      '<p style="margin-top:18px;color:#5a6b7c;font-size:11px">IR-Pilot · zum Speichern: Drucken → „Als PDF speichern".</p>' +
+      '</body></html>';
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = IR.report;
 })(typeof window !== 'undefined' ? window : globalThis);

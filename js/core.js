@@ -90,9 +90,20 @@
         iocs: [],             // {ts, type, value, note}
         comms: [],            // {ts, audience, channel, status, content}
         tasks: [],            // {ts, text, owner, done}
+        photos: [],           // {id, ts, name, note, host, dataUrl}
         notes: []             // freie Notizen
       };
     },
+
+    addPhoto: function (c, p) {
+      p = p || {};
+      if (!c.photos) c.photos = [];
+      var ph = { id: U.uid('img'), ts: U.nowISO(), name: p.name || 'Foto', note: p.note || '', host: p.host || '', dataUrl: p.dataUrl || '' };
+      c.photos.push(ph);
+      IR.Case.log(c, 'evidence', 'Foto/Screenshot erfasst: ' + ph.name + (ph.host ? ' (' + ph.host + ')' : ''));
+      return ph;
+    },
+    removePhoto: function (c, id) { c.photos = (c.photos || []).filter(function (x) { return x.id !== id; }); return c; },
 
     log: function (c, kind, text, by) {
       c.timeline.push({ ts: U.nowISO(), kind: kind || 'note', text: text, by: by || c.responder || '' });

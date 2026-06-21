@@ -46,6 +46,7 @@
       : state.view === 'dashboard' ? viewDashboard()
       : state.view === 'hosts' ? viewHosts()
       : state.view === 'cloud' ? viewCloud()
+      : state.view === 'assistant' ? viewAssistant()
       : state.view === 'tools' ? viewTools() : viewHome());
     var v = state.view;
     if (v === 'home') root.innerHTML = viewHome();
@@ -54,6 +55,7 @@
     else if (v === 'dashboard') root.innerHTML = viewDashboard();
     else if (v === 'hosts') root.innerHTML = viewHosts();
     else if (v === 'cloud') root.innerHTML = viewCloud();
+    else if (v === 'assistant') root.innerHTML = viewAssistant();
     else if (v === 'pb') root.innerHTML = viewPlaybook();
     else if (v === 'evidence') root.innerHTML = viewEvidence();
     else if (v === 'ioc') root.innerHTML = viewIoc();
@@ -72,7 +74,8 @@
       '<button class="mini" data-act="goto-native">📡 Geraete &amp; Forensik (nativ)</button>' +
       '<button class="mini" data-act="goto-hosts">🖧 Forensik-Hosts (bis 10)</button>' +
       '<button class="mini" data-act="goto-dashboard">📊 Live-Dashboard</button>' +
-      '<button class="mini" data-act="goto-cloud">☁️ Cloud &amp; Veroeffentlichen</button></section>';
+      '<button class="mini" data-act="goto-cloud">☁️ Cloud &amp; Veroeffentlichen</button>' +
+      '<button class="mini" data-act="goto-assistant">🤖 Assistent (KI-Fragen)</button></section>';
     h += '<section class="card"><h2>Schnellstart (Beispiele)</h2><div class="pbgrid">';
     IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).forEach(function (p) {
       h += '<button class="pbcard" data-act="new" data-id="' + p.id + '">' +
@@ -423,6 +426,52 @@
     return h;
   }
 
+  /* ------------------------------------------------------- KI-Assistent */
+  function viewAssistant() {
+    var A = IR.assistant, cfg = A.config(), on = A.enabled();
+    var hist = state.asstHistory || (state.asstHistory = []);
+    var h = '<section class="card"><div class="row"><h2>🤖 Assistent (KI)</h2>' +
+      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      '<p class="muted">Fachfragen direkt im Einsatz (IR/OT-Forensik, Schutzgeräte wie SIPROTEC, Log-Sicherung). Nutzt deinen <b>eigenen</b> Anthropic-API-Key – bleibt lokal, wird nie übertragen/committet. Braucht Internet.</p>' +
+      '<div class="row"><label>API-Key</label><input id="asstKey" type="password" value="' + U.esc(cfg.apiKey) + '" placeholder="sk-ant-…"></div>' +
+      '<div class="row"><label>Modell</label><select id="asstModel">' +
+      A.MODELS.map(function (m) { return '<option value="' + m.id + '"' + (cfg.model === m.id ? ' selected' : '') + '>' + U.esc(m.name) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="row"><button data-act="asst-save">Speichern</button>' +
+      '<span class="badge">' + (on ? 'bereit' : 'kein Key') + '</span>' +
+      (hist.length ? '<button class="mini" data-act="asst-clear">Verlauf leeren</button>' : '') + '</div>' +
+      '<small class="muted">Key erstellen: console.anthropic.com → API Keys.</small></section>';
+
+    h += '<section class="card"><h3>Beispiel-Fragen</h3><div class="chips col">' +
+      A.SUGGESTIONS.map(function (s, i) { return '<button class="chip" data-act="asst-suggest" data-i="' + i + '">' + U.esc(s) + '</button>'; }).join('') + '</div></section>';
+
+    h += '<section class="card"><div class="chat">';
+    if (!hist.length) h += '<p class="muted">Stelle eine Frage – z.B. „Offline-Log-Sicherung am Schutzgerät SIPROTEC 4 – wie gehe ich vor?"</p>';
+    hist.forEach(function (m) {
+      h += '<div class="msg ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.role === 'user' ? U.esc(m.content) : U.md(m.content)) + '</div>';
+    });
+    if (state.asstBusy) h += '<div class="msg ai muted">… denkt nach</div>';
+    h += '</div><div class="row"><textarea id="asstInput" placeholder="Frage eingeben…">' + U.esc(state.asstDraft || '') + '</textarea></div>' +
+      '<button class="bigbtn" data-act="asst-send"' + (state.asstBusy ? ' disabled' : '') + '>Senden ▸</button></section>';
+    return h;
+  }
+  function asstSend() {
+    var A = IR.assistant;
+    if (!A.enabled()) { toast('Erst API-Key speichern'); return; }
+    var inp = document.getElementById('asstInput');
+    var q = (inp && inp.value || state.asstDraft || '').trim();
+    if (!q) { toast('Frage eingeben'); return; }
+    var hist = state.asstHistory || (state.asstHistory = []);
+    hist.push({ role: 'user', content: q });
+    state.asstDraft = ''; state.asstBusy = true; render();
+    A.ask(hist).then(function (ans) {
+      hist.push({ role: 'assistant', content: ans }); state.asstBusy = false; render();
+    }).catch(function (e) {
+      state.asstBusy = false;
+      var msg = (e && e.message) || String(e);
+      hist.push({ role: 'assistant', content: '⚠️ Fehler: ' + msg + (/40[13]|key/i.test(msg) ? '\n\nAPI-Key prüfen.' : '') }); render();
+    });
+  }
+
   function viewPlaybook() {
     var pb = IR.Case.playbook(c);
     var pr = IR.engine.progress(pb, c);
@@ -515,6 +564,26 @@
   function viewEvidence() {
     var h = '<section class="card"><h2>Beweise & Chain of Custody</h2>' +
       '<button class="mini" data-act="ev-new">+ Neuer Beweis</button></section>';
+    // Fotos & Screenshots (z.B. von den Hosts/Anlagen)
+    var hosts = IR.hosts ? IR.hosts.list() : [];
+    h += '<section class="card"><h2>📷 Fotos & Screenshots</h2>' +
+      '<p class="muted">Fotos der Geräte/Anlagen oder Screenshots von Host-Bildschirmen erfassen (werden verkleinert lokal gespeichert und im PDF-Bericht eingebunden).</p>' +
+      '<div class="row"><label>Host/Quelle</label><select id="photoHost"><option value="">— frei —</option>' +
+      hosts.map(function (x) { return '<option>' + U.esc(x.label) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="row"><button class="mini" data-act="photo-cam">📷 Foto aufnehmen</button>' +
+      '<button class="mini" data-act="photo-pick">🖼️ Aus Galerie/Datei</button></div>';
+    var ph = c.photos || [];
+    if (ph.length) {
+      h += '<div class="phgrid">';
+      ph.slice().reverse().forEach(function (p) {
+        h += '<figure class="phc"><img src="' + p.dataUrl + '" data-act="photo-view" data-id="' + p.id + '">' +
+          '<figcaption><input data-photo="' + p.id + '" value="' + U.esc(p.note || '') + '" placeholder="Notiz">' +
+          '<div class="row"><small>' + U.esc(p.host || '—') + ' · ' + U.fmtTs(p.ts) + '</small>' +
+          '<button class="icon" data-act="photo-del" data-id="' + p.id + '" title="löschen">✕</button></div></figcaption></figure>';
+      });
+      h += '</div>';
+    } else h += '<small class="muted">Noch keine Fotos.</small>';
+    h += '</section>';
     if (!c.evidence.length) h += '<p class="muted pad">Noch keine Beweise.</p>';
     c.evidence.forEach(function (e) {
       h += '<section class="card ev"><div class="row"><strong>' + U.esc(e.name) + '</strong><span class="badge">' + U.esc(e.type) + '</span></div>' +
@@ -574,6 +643,7 @@
     return '<section class="card"><h2>Bericht & Daten</h2>' +
       '<div class="row"><button class="mini" data-act="rep-copy">Markdown kopieren</button>' +
       '<button class="mini" data-act="rep-dl">.md herunterladen</button>' +
+      '<button class="mini" data-act="rep-pdf">📄 Bericht als PDF</button>' +
       '<button class="mini" data-act="case-dl">Fall (JSON) exportieren</button>' +
       '<button class="mini" data-act="tl-csv">Timeline CSV</button>' +
       '<button class="mini" data-act="sitrep">Lagebericht</button>' +
@@ -648,6 +718,15 @@
       cloudPublish([c]); return;
     }
     if (act === 'cloud-pub-all') { cloudPublish(IR.store.list()); return; }
+    // ---- KI-Assistent ----
+    if (act === 'goto-assistant') { state.view = 'assistant'; return render(); }
+    if (act === 'asst-save') {
+      IR.assistant.setConfig({ apiKey: ($('#asstKey') || {}).value, model: ($('#asstModel') || {}).value || IR.assistant.DEFAULT_MODEL });
+      toast(IR.assistant.enabled() ? 'Assistent bereit' : 'API-Key fehlt'); return render();
+    }
+    if (act === 'asst-suggest') { state.asstDraft = IR.assistant.SUGGESTIONS[+b.dataset.i] || ''; return render(); }
+    if (act === 'asst-send') { return asstSend(); }
+    if (act === 'asst-clear') { state.asstHistory = []; return render(); }
     if (act === 'native-run') { if (!IR.native.run(id)) toast('Nur in der APK nativ verfuegbar'); return; }
     if (act === 'native-reload') { IR.native.reloadData(); return; }
     if (act === 'kit-export') { if (IR.native.exportKit()) toast('Werkzeug-Kit wird gespeichert'); else toast('Download nicht moeglich'); return; }
@@ -663,6 +742,10 @@
     else if (act === 'choice') { var st = findStep(id); var o = st.options[+b.dataset.i]; IR.Case.setFlag(c, o.setFlag.k, o.setFlag.v); save(); render(); }
     else if (act === 'ev-add') { var s2 = findStep(id); IR.Case.addEvidence(c, { name: s2.evidence.name, type: s2.evidence.type, volatility: s2.evidence.volatility, method: s2.evidence.method, collectedBy: c.responder }); c.checks[id] = true; save(); toast('Beweis angelegt – im Tab Beweise vervollstaendigen'); render(); }
     else if (act === 'ev-new') { IR.Case.addEvidence(c, { name: 'Neuer Beweis', collectedBy: c.responder }); save(); render(); }
+    else if (act === 'photo-cam') { pickPhoto(true); }
+    else if (act === 'photo-pick') { pickPhoto(false); }
+    else if (act === 'photo-del') { if (confirm('Foto löschen?')) { IR.Case.removePhoto(c, id); save(); render(); } }
+    else if (act === 'photo-view') { var pv = (c.photos || []).filter(function (x) { return x.id === id; })[0]; if (pv) { var w = window.open('', '_blank'); if (w) { w.document.write('<img style="max-width:100%" src="' + pv.dataUrl + '">'); } } }
     else if (act === 'custody') { var by = prompt('Uebergabe an / Aktion (z.B. „uebergeben an Polizei XY"):'); if (by) { IR.Case.custodyTransfer(c, id, 'uebergeben', by, ''); save(); render(); } }
     else if (act === 'comm-open') { go('comms'); setTimeout(function () { var el = document.getElementById('comm-' + id); if (el) el.scrollIntoView(); }, 50); }
     else if (act === 'comm-copy') { copy(IR.fillTemplate(IR.comms[id].subject + '\n\n' + IR.comms[id].body, ctxNow())); }
@@ -672,6 +755,7 @@
     else if (act === 'tool-dl') { var t = tool(id); download(t.filename, t.script); }
     else if (act === 'rep-copy') { copy(IR.report.markdown(c)); }
     else if (act === 'rep-dl') { download('incident-report-' + c.id + '.md', IR.report.markdown(c), 'text/markdown'); }
+    else if (act === 'rep-pdf') { reportPdf(); }
     else if (act === 'case-dl') { download('case-' + c.id + '.json', JSON.stringify(c, null, 2), 'application/json'); }
     else if (act === 'sitrep') { copy(IR.report.sitrep(c)); toast('Lagebericht kopiert'); }
     else if (act === 'tl-csv') { download('timeline-' + c.id + '.csv', IR.report.timelineCSV(c), 'text/csv'); }
@@ -681,6 +765,58 @@
       if (txt) { var r = IR.ingest.merge(c, IR.ingest.fromText(txt)); save(); toast(r.iocs + ' IOCs importiert'); render(); }
     }
   });
+
+  // Bericht als PDF: druckfertiges HTML -> neues Fenster -> Drucken/„Als PDF speichern".
+  // In der APK nutzt IR.native.print() den Android-PDF-Druck; im Browser window.print().
+  function reportPdf() {
+    var html = IR.report.printableHTML(c);
+    var w = window.open('', '_blank');
+    if (w && w.document) {
+      w.document.open(); w.document.write(html); w.document.close();
+      setTimeout(function () { try { (IR.native.isNative() ? w : w).focus(); } catch (e) {} (w.print ? w.print() : null); }, 400);
+      toast('Druckansicht geöffnet → „Als PDF speichern"');
+      return;
+    }
+    // Fallback (Popup blockiert / WebView): in-place drucken über native Bridge
+    var box = document.getElementById('printbox') || (function () { var d = document.createElement('div'); d.id = 'printbox'; document.body.appendChild(d); return d; })();
+    box.innerHTML = '<iframe id="pf" style="position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff;z-index:9999"></iframe>';
+    var ifr = document.getElementById('pf');
+    var doc = ifr.contentWindow.document; doc.open(); doc.write(html); doc.close();
+    setTimeout(function () { IR.native.print(); toast('Drucken → „Als PDF speichern" (✕ schließt die Ansicht)'); }, 400);
+  }
+
+  // Foto/Screenshot erfassen: Kamera (capture) oder Galerie/Datei; verkleinern -> dataURL.
+  function pickPhoto(camera) {
+    var host = (document.getElementById('photoHost') || {}).value || '';
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    if (camera) inp.setAttribute('capture', 'environment');
+    inp.addEventListener('change', function () {
+      var f = inp.files && inp.files[0]; if (!f) return;
+      downscaleImage(f, 1280, 0.7, function (dataUrl) {
+        IR.Case.addPhoto(c, { name: f.name || 'Foto', host: host, dataUrl: dataUrl });
+        save(); toast('Foto erfasst'); render();
+      });
+    });
+    inp.click();
+  }
+  function downscaleImage(file, maxPx, quality, cb) {
+    var rd = new FileReader();
+    rd.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var w = img.width, hgt = img.height, scale = Math.min(1, maxPx / Math.max(w, hgt));
+        var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(hgt * scale));
+        try {
+          var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+          cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+          cb(cv.toDataURL('image/jpeg', quality));
+        } catch (e) { cb(rd.result); }   // Fallback: Original
+      };
+      img.onerror = function () { cb(rd.result); };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  }
 
   function importFromFile() {
     var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
@@ -705,7 +841,9 @@
     // Assistent (kein Fall aktiv)
     if (t.id === 'wizq') { wiz().q = t.value; var pos = t.selectionStart; render(); var e2 = document.getElementById('wizq'); if (e2) { e2.focus(); try { e2.setSelectionRange(pos, pos); } catch (_) {} } return; }
     if (t.dataset.wizans != null) { wiz().answers[t.dataset.wizans] = t.value; return; }
+    if (t.id === 'asstInput') { state.asstDraft = t.value; return; }
     if (!c) return;
+    if (t.dataset.photo != null) { var pp = (c.photos || []).filter(function (x) { return x.id === t.dataset.photo; })[0]; if (pp) { pp.note = t.value; save(); } return; }
     if (t.dataset.answer != null) { c.answers[t.dataset.answer] = t.value; save(); }
     else if (t.dataset.meta) { c[t.dataset.meta] = t.value; $('#caseTitle').textContent = c.title; $('#caseTag').textContent = c.classification || ''; save(); }
     else if (t.dataset.ev) { var ev = c.evidence.filter(function (x) { return x.id === t.dataset.ev; })[0]; if (ev) { ev[t.dataset.k] = t.value; save(); } }

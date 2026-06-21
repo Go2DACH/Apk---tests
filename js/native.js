@@ -17,6 +17,9 @@
 
     toast: function (m) { if (has('toast')) B.toast(m); },
 
+    // Aktuelle Seite als PDF: APK -> Android-Druck/PDF; sonst window.print().
+    print: function () { if (has('printPage')) { B.printPage(); return true; } if (root.print) { root.print(); return true; } return false; },
+
     // Datei sichern: nativ -> Downloads/USB; sonst false (App nutzt Blob-Download)
     save: function (name, text) { if (has('saveFile')) { B.saveFile(name, text); return true; } return false; },
     share: function (name, text) { if (has('share')) { B.share(name, text); return true; } return false; },

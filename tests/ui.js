@@ -66,6 +66,10 @@ function run() {
     ok(!!d.querySelector('.findings') && /Befunde aus Daten/.test(d.querySelector('#app').innerHTML), 'Befunde aus Daten im Playbook sichtbar');
     ok(/LT12/.test(d.querySelector('.findings').innerHTML), 'importierter IOC steht im Forensik-Befund');
 
+    // Beweise-Ansicht: Foto-Bereich vorhanden
+    [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'evidence'; })[0].click();
+    ok(/Fotos &(amp;)? Screenshots/.test(d.querySelector('#app').innerHTML) && !!d.querySelector('[data-act="photo-cam"]') && !!d.querySelector('[data-act="photo-pick"]'), 'Foto-Bereich in Beweise');
+
     // Comms protokollieren
     [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'comms'; })[0].click();
     var clog = d.querySelector('[data-act="comm-log"]');
@@ -79,6 +83,8 @@ function run() {
     [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'report'; })[0].click();
     var rep = d.querySelector('.report').textContent;
     ok(/Incident-Report/.test(rep) && /Chain of Custody/.test(rep), 'Bericht gerendert');
+    ok(!!d.querySelector('[data-act="rep-pdf"]'), 'PDF-Bericht-Button vorhanden');
+    ok(typeof IR.report.printableHTML === 'function', 'printableHTML verfuegbar');
 
     // ---- Assistent (Wizard) durchspielen ----
     d.querySelector('#home').click();
@@ -136,6 +142,16 @@ function run() {
     ok(IR.cloud.enabled() === true && IR.cloud.config().owner === 'go2dach', 'Cloud-Config persistiert + aktiv');
     ok(/data-repo\/dashboard.html/.test(d.querySelector('#app').innerHTML), 'Dashboard-Link gezeigt');
     IR.cloud.setConfig({ owner: '', repo: '', token: '' });
+
+    // ---- KI-Assistent ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="goto-assistant"]').click();
+    ok(/Assistent/.test(d.querySelector('#app').innerHTML) && !!d.querySelector('#asstKey'), 'Assistent-Ansicht mit Key-Feld');
+    ok(/SIPROTEC 4/.test(d.querySelector('#app').innerHTML), 'SIPROTEC-Beispielfrage angezeigt');
+    d.querySelector('#asstKey').value = 'sk-ant-demo';
+    d.querySelector('[data-act="asst-save"]').click();
+    ok(IR.assistant.enabled() === true, 'Assistent-Key gespeichert');
+    IR.assistant.setConfig({ apiKey: '' });
 
     console.log('\nUI: ' + passes + ' ok, ' + fails + ' fail');
     process.exit(fails ? 1 : 0);

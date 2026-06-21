@@ -1,8 +1,8 @@
 /* IR-Pilot Service Worker – Offline-Cache (nur bei http/https aktiv). */
-var CACHE = 'ir-pilot-v3';
+var CACHE = 'ir-pilot-v4';
 var ASSETS = [
   './', './index.html', './dashboard.html', './css/app.css',
-  './js/core.js', './js/native.js', './js/hosts.js', './js/cloud.js', './js/framework.js', './js/report.js', './js/app.js',
+  './js/core.js', './js/native.js', './js/hosts.js', './js/cloud.js', './js/assistant.js', './js/framework.js', './js/report.js', './js/app.js',
   './data/catalog.js', './data/playbooks.js', './data/comms.js',
   './data/toolkit.js', './data/questions.js',
   './manifest.webmanifest', './assets/icon.svg'

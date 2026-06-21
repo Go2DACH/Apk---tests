@@ -91,6 +91,16 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
 .bigbtn{display:block;width:100%;background:var(--acc);color:#04243f;border:0;border-radius:10px;
   padding:13px;font-size:15px;font-weight:800;margin:6px 0}
 .bigbtn:disabled{opacity:.4}
+.phgrid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.phc{margin:0;width:calc(50% - 5px);background:#0c2944;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.phc img{width:100%;height:120px;object-fit:cover;display:block}
+.phc figcaption{padding:6px}.phc figcaption input{width:100%;margin-bottom:4px}
+.chat{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto;margin-bottom:8px}
+.msg{padding:9px 11px;border-radius:12px;max-width:92%;font-size:14px}
+.msg.me{align-self:flex-end;background:var(--acc);color:#04243f}
+.msg.ai{align-self:flex-start;background:#0c2944;border:1px solid var(--line)}
+.msg.ai p:first-child{margin-top:0}.msg.ai p:last-child{margin-bottom:0}
+textarea#asstInput{width:100%;min-height:60px}
 .findings{background:#0c2944;border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:10px;margin:0 0 10px}
 .findings .findlist{margin:4px 0}.findings .frow{font-size:13px;margin:2px 0}
 .findings code{background:#06182a;padding:1px 5px;border-radius:5px}

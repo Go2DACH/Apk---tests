@@ -4,6 +4,7 @@ require('../js/core.js');
 require('../js/native.js');
 require('../js/hosts.js');
 require('../js/cloud.js');
+require('../js/assistant.js');
 require('../data/catalog.js');
 require('../data/comms.js');
 require('../data/toolkit.js');
@@ -295,7 +296,50 @@ group('Forensik-Hosts (bis 10)', function () {
   ok(H.list().length === 0, 'aufgeraeumt');
 });
 
+group('Fotos & PDF-Bericht', function () {
+  var c = IR.Case.create({ playbookId: 'ransomware', title: 'Foto-Test' });
+  var p = IR.Case.addPhoto(c, { name: 'Kasse.jpg', host: 'Kasse-PC', dataUrl: 'data:image/jpeg;base64,AAAA', note: 'Display schwarz' });
+  ok(c.photos.length === 1 && p.id, 'Foto erfasst');
+  ok(c.timeline.some(function (t) { return /Foto\/Screenshot erfasst/.test(t.text); }), 'Foto im Verlauf protokolliert');
+  var html = IR.report.printableHTML(c);
+  ok(typeof html === 'string' && /Incident-Report/.test(html) && /Foto-Test/.test(html), 'PDF-HTML enthaelt Report');
+  ok(/Fotos &amp;? ?Screenshots/.test(html) && html.indexOf('data:image/jpeg;base64,AAAA') >= 0, 'PDF-HTML bindet Foto ein');
+  IR.Case.removePhoto(c, p.id);
+  ok(c.photos.length === 0, 'Foto entfernt');
+});
+
+group('KI-Assistent (Request)', function () {
+  var A = IR.assistant;
+  ok(A && A.SUGGESTIONS.some(function (s) { return /SIPROTEC 4/.test(s); }), 'SIPROTEC-4-Beispielfrage vorhanden');
+  ok(A.enabled() === false, 'ohne Key nicht bereit');
+  A.setConfig({ apiKey: 'sk-ant-test', model: 'claude-opus-4-8' });
+  ok(A.enabled() === true, 'mit Key bereit');
+  var req = A.buildRequest([{ role: 'user', content: 'SIPROTEC 4 Logs offline sichern?' }]);
+  ok(req.url === 'https://api.anthropic.com/v1/messages', 'Messages-Endpoint');
+  ok(req.opts.headers['x-api-key'] === 'sk-ant-test', 'API-Key im Header');
+  ok(req.opts.headers['anthropic-dangerous-direct-browser-access'] === 'true', 'Browser-Access-Header gesetzt');
+  ok(req.opts.headers['anthropic-version'] === '2023-06-01', 'API-Version gesetzt');
+  var body = JSON.parse(req.opts.body);
+  ok(body.model === 'claude-opus-4-8', 'Modell uebernommen');
+  ok(typeof body.system === 'string' && /SIPROTEC/.test(body.system), 'System-Prompt mit OT/SIPROTEC');
+  ok(body.messages.length === 1 && body.messages[0].role === 'user', 'Nachricht im Body');
+});
+
 function finish() { console.log('\n' + passes + ' ok, ' + fails + ' fail'); process.exit(fails ? 1 : 0); }
+
+// Async: Assistent ask() gegen simulierte Anthropic-API
+function assistantAsync() {
+  globalThis.fetch = function (url, opts) {
+    var auth = opts && opts.headers && opts.headers['x-api-key'];
+    return Promise.resolve({ ok: !!auth, status: auth ? 200 : 401,
+      json: function () { return Promise.resolve(auth ? { content: [{ type: 'text', text: '1. Spannungsfrei? 2. DIGSI offline...' }] } : { error: { message: 'auth' } }); } });
+  };
+  IR.assistant.setConfig({ apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6' });
+  return IR.assistant.ask([{ role: 'user', content: 'SIPROTEC 4?' }]).then(function (txt) {
+    ok(/DIGSI/.test(txt), 'Assistent liefert Antworttext');
+    delete globalThis.fetch;
+  });
+}
 
 // ---- Cloud-Sync (Git als Speicher), mit simuliertem GitHub-fetch ----
 function fakeGitHub() {
@@ -396,5 +440,6 @@ IR.cloud.publish(IR.Case.create({ playbookId: 'generic', title: 'Publish-Test', 
     delete globalThis.fetch;
     return hostFindingsAsync();
   })
+  .then(function () { return assistantAsync(); })
   .then(function () { finish(); })
   .catch(function (e) { ok(false, 'Cloud/Host Async Exception: ' + (e && e.stack || e)); delete globalThis.fetch; finish(); });

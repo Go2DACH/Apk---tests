@@ -2,6 +2,15 @@
 
 ## Unreleased — Multi-Host, Cloud & Auslieferung
 
+- **Fotos & Screenshots** (`js/core.js` addPhoto/removePhoto): Geräte-/Anlagenfotos
+  oder Host-Screenshots in der Beweise-Ansicht erfassen (Kamera oder Galerie),
+  lokal verkleinert gespeichert, im PDF-Bericht eingebunden.
+- **Bericht als PDF**: `IR.report.printableHTML` + „📄 Bericht als PDF" – Browser
+  `window.print()` bzw. in der APK Android-PDF-Druck (`IRBridge.printPage`).
+- **KI-Assistent** (`js/assistant.js`, Ansicht „🤖 Assistent"): Fachfragen (IR/OT,
+  Schutzgeräte wie SIPROTEC 4, Log-Sicherung) über die Claude-Messages-API mit
+  **eigenem** API-Key (lokal, nie committet); Beispiel-Fragen vorbelegt.
+
 - **Eine Quelle statt zwei Apps**: Das **Werkzeug-Kit** (Boot-Stick-Skripte,
   `control-server.py`, Windows-Sammler, App) ist als `ir-pilot-kit.zip` **in die
   APK eingebettet** und über **„📦 Kit herunterladen"** (Geräte-Ansicht) direkt auf
