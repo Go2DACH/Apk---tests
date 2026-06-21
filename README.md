@@ -11,6 +11,11 @@ Fold 5.
 
 ## Was es kann
 
+- **Erstbewertungs-Gate „Vorfall oder Fehlalarm?"**: Nicht jeder Anruf ist ein
+  Angriff. Jedes Playbook startet mit einer Einstufung (bestätigt / Verdacht /
+  **kein Angriff**). Das Angriffs-Playbook wird erst bei bestätigt/Verdacht
+  sichtbar; bei „kein Angriff" greift ein **De-Eskalations-/Dokumentationspfad**
+  (benigne Ursache belegen, Entwarnung kommunizieren, sauber schließen).
 - **Geführte Playbooks** entlang des IR-Lifecycles: Triage → Krisenkommunikation
   → Beweissicherung → Eindämmung → Bereinigung → Wiederherstellung/sicherer
   Wiederanlauf → Ermittlung → Abschluss.
@@ -102,8 +107,10 @@ in der App unter **Bericht → Daten importieren (JSON)** einliest (oder
 ### Forensik-Toolkit (in der App, `tools/`)
 Windows-/Linux-/AD-/M365-Triage · OT-Capture (USB-Ethernet) · Mail-Header ·
 Hash-Manifest · **Memory-Acquisition** (avml/winpmem) · **Velociraptor**
-Offline-Collector · **UAC** · **Super-Timeline** (plaso/Sleuthkit). `npm run tools`
-materialisiert sie nach `tools/`.
+Offline-Collector · **UAC** · **Super-Timeline** (plaso/Sleuthkit) · **CyberChef
+offline** (Dekodieren/Defangen/JWT direkt im Browser, auch am Smartphone –
+`tools/fetch-cyberchef.sh` holt es einmalig, danach offline). `npm run tools`
+materialisiert die Skripte nach `tools/`.
 
 ### Fertige Artefakte — `dist/`
 - `IR-Pilot_Einsatzkarten.pdf` — eine A4-Seite je Fall (Sofortmaßnahmen,

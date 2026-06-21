@@ -238,6 +238,26 @@
 "else echo '[!] Weder plaso noch sleuthkit gefunden.'; exit 1; fi\n" +
 "sha256sum \"$OUT\"/timeline-$TS.csv > \"$OUT/timeline-$TS.csv.sha256\" 2>/dev/null\n" +
 "echo \"[+] Timeline: $OUT/timeline-$TS.csv\"\n"
+    },
+    {
+      id: 'CyberChef', name: 'CyberChef (offline)', os: 'Browser / offline (auch Smartphone)',
+      filename: 'fetch-cyberchef.sh',
+      purpose: 'CyberChef einmalig auf den Stick holen – danach OFFLINE im Browser: Base64/Hex/Gunzip dekodieren, JWT zerlegen, IOCs defangen, Magic-Erkennung, Hashes. Ideal zur schnellen Analyse am Fold 5 ohne Internet.',
+      safety: 'Read-only Analyse im Browser (eine HTML-Datei). Einmal mit Internet holen, dann offline nutzbar: tools/cyberchef/CyberChef.html oeffnen.',
+      script:
+"#!/usr/bin/env bash\n" +
+"# Holt das CyberChef Standalone-HTML (offline).  ./fetch-cyberchef.sh [zielordner]\n" +
+"set -u; DEST=\"${1:-$(cd \"$(dirname \"$0\")\" && pwd)/cyberchef}\"; mkdir -p \"$DEST\"\n" +
+"API='https://api.github.com/repos/gchq/CyberChef/releases/latest'\n" +
+"echo '[*] Ermittle neueste CyberChef-Version...'\n" +
+"URL=\"$(curl -fsSL \"$API\" | grep -oE 'https://[^\"]+CyberChef_v[0-9.]+\\.zip' | head -1)\"\n" +
+"[ -z \"${URL:-}\" ] && { echo '[!] Download-URL nicht gefunden (Internet noetig).'; exit 1; }\n" +
+"TMP=\"$(mktemp -d)\"; echo \"[*] Lade $URL\"\n" +
+"curl -fsSL \"$URL\" -o \"$TMP/cc.zip\" && unzip -o -q \"$TMP/cc.zip\" -d \"$TMP\"\n" +
+"HTML=\"$(find \"$TMP\" -name 'CyberChef_v*.html' | head -1)\"\n" +
+"[ -z \"${HTML:-}\" ] && { echo '[!] HTML nicht gefunden.'; exit 1; }\n" +
+"cp \"$HTML\" \"$DEST/CyberChef.html\"; sha256sum \"$DEST/CyberChef.html\" | tee \"$DEST/CyberChef.html.sha256\"\n" +
+"rm -rf \"$TMP\"; echo \"[+] Offline bereit: $DEST/CyberChef.html (im Browser oeffnen).\"\n"
     }
   ];
 

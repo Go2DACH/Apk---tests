@@ -68,6 +68,7 @@ group('Toolkit', function () {
 group('Engine: showIf, Flags, Fortschritt', function () {
   var pb = IR.engine.playbook('ransomware');
   var c = IR.Case.create({ playbookId: 'ransomware', org: 'Baeckerei', responder: 'IR' });
+  IR.Case.setFlag(c, 'status', 'confirmed');   // Gate: Angriffs-Schritte sichtbar
   // showIf: Restore-aus-Backup nur sichtbar wenn backups_ok=true
   var recov = pb.phases.filter(function (p) { return p.id === 'wiederanlauf'; })[0];
   var visBefore = IR.engine.visibleSteps(recov, c).map(function (s) { return s.id; });
@@ -80,6 +81,36 @@ group('Engine: showIf, Flags, Fortschritt', function () {
   var p0 = IR.engine.progress(pb, c); ok(p0.total > 0 && p0.done === 0, 'Fortschritt startet bei 0');
   IR.Case.check(c, 'ran-t-isolate', true);
   ok(IR.engine.progress(pb, c).done === 1, 'Fortschritt zaehlt Check');
+});
+
+group('Erstbewertungs-Gate & Benign-Pfad ("kein Angriff")', function () {
+  IR.playbooks.forEach(function (pb) {
+    ok(pb.phases[0].id === 'verifikation', pb.id + ': Verifikation ist erste Phase');
+    ok(IR.engine.playbook(pb.id).phases[0].steps.some(function (s) { return /-v-assess$/.test(s.id); }), pb.id + ': Einstufungs-Choice vorhanden');
+  });
+  // Ohne Einstufung: Angriffs-Phasen versteckt
+  var pb = IR.engine.playbook('ot-stellwerk');
+  var c = IR.Case.create({ playbookId: 'ot-stellwerk' });
+  var triage = pb.phases.filter(function (p) { return p.id === 'triage'; })[0];
+  ok(IR.engine.visibleSteps(triage, c).length === 0, 'Angriffs-Triage ohne Einstufung versteckt');
+  // benign: nur De-Eskalationspfad sichtbar
+  IR.Case.setFlag(c, 'status', 'benign');
+  var verif = pb.phases[0];
+  var visB = IR.engine.visibleSteps(verif, c).map(function (s) { return s.id; });
+  ok(visB.indexOf('ot-stellwerk-v-bclose') >= 0, 'benign: Schliessen-Schritt sichtbar');
+  ok(visB.indexOf('ot-stellwerk-v-proceed') < 0, 'benign: Proceed-Hinweis versteckt');
+  ok(IR.engine.visibleSteps(triage, c).length === 0, 'benign: Angriffs-Triage bleibt versteckt');
+  // confirmed: Angriffs-Phasen sichtbar, benign-Pfad versteckt
+  IR.Case.setFlag(c, 'status', 'confirmed');
+  ok(IR.engine.visibleSteps(triage, c).length > 0, 'confirmed: Angriffs-Triage sichtbar');
+  ok(IR.engine.visibleSteps(verif, c).map(function (s) { return s.id; }).indexOf('ot-stellwerk-v-bclose') < 0, 'confirmed: benign-Pfad versteckt');
+  // Report im Benign-Fall funktioniert
+  var cb = IR.Case.create({ playbookId: 'ot-stellwerk', title: 'Fehlalarm Maus' });
+  IR.Case.setFlag(cb, 'status', 'benign');
+  IR.Case.answer(cb, 'ot-stellwerk-deesc', 'Legitime Fernwartung (angekuendigt) bestaetigt.');
+  ['ot-stellwerk-v-doc', 'ot-stellwerk-v-bverify', 'ot-stellwerk-v-bclose'].forEach(function (id) { IR.Case.check(cb, id, true); });
+  var md = IR.report.markdown(cb);
+  ok(/Erstbewertung/.test(md), 'Benign-Report enthaelt Erstbewertung');
 });
 
 group('Voller Durchlauf je Fall -> Bericht', function () {

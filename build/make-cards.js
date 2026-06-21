@@ -10,9 +10,13 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return
 function li(arr){ return arr.map(function(x){return '<li>'+esc(x)+'</li>';}).join(''); }
 
 var cards = IR.playbooks.map(function(pb){
-  var triage = (pb.phases.filter(function(p){return p.id==='triage';})[0]||{steps:[]}).steps
+  var verif = (pb.phases.filter(function(p){return p.id==='verifikation';})[0]||{steps:[]}).steps
+    .filter(function(s){return (s.type==='check'||s.type==='choice') && !/-v-b/.test(s.id);})
+    .map(function(s){return s.title;});
+  var triageSteps = (pb.phases.filter(function(p){return p.id==='triage';})[0]||{steps:[]}).steps
     .filter(function(s){return s.type==='check'||s.type==='choice';})
-    .slice(0,6).map(function(s){return s.title;});
+    .map(function(s){return s.title;});
+  var triage = verif.concat(triageSteps).slice(0,7);
   var comms = (pb.phases.filter(function(p){return p.id==='comms';})[0]||{steps:[]}).steps
     .filter(function(s){return s.type==='comms';})
     .map(function(s){ var t=IR.comms[s.commsId]||{}; return (t.audience||s.title)+(t.frist?'  ['+t.frist+']':''); });

@@ -52,6 +52,8 @@ systemctl disable udisks2 2>/dev/null || true
 echo 'vm.swappiness=0' >> /etc/sysctl.conf
 ln -sf /opt/ir-pilot/desktop/autorun.sh /usr/local/bin/ir-desktop 2>/dev/null || true
 chmod +x /opt/ir-pilot/desktop/*.sh /opt/ir-pilot/mobile/*.sh /opt/ir-pilot/tools/*.sh 2>/dev/null || true
+# CyberChef offline mit ins Image holen (best effort, Internet im Build noetig)
+bash /opt/ir-pilot/tools/fetch-cyberchef.sh /opt/ir-pilot/tools/cyberchef 2>/dev/null || true
 EOF
 chmod +x config/hooks/live/9000-forensic.hook.chroot
 
