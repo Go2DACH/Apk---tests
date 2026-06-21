@@ -119,6 +119,18 @@ function run() {
     ok(!d.querySelector('#dashPin') && /Sperren/.test(d.querySelector('#app').innerHTML), 'PIN 1374 entsperrt Downloads');
     IR.hosts.list().slice().forEach(function (h) { IR.hosts.remove(h.id); });
 
+    // ---- Cloud-Konfiguration (Git-Speicher) ----
+    d.querySelector('#home').click();
+    d.querySelector('[data-act="goto-cloud"]').click();
+    ok(/Cloud/.test(d.querySelector('#app').innerHTML) && !!d.querySelector('#clOwner'), 'Cloud-Ansicht mit Formular');
+    d.querySelector('#clOwner').value = 'go2dach';
+    d.querySelector('#clRepo').value = 'data-repo';
+    d.querySelector('#clToken').value = 'ghp_demo';
+    d.querySelector('[data-act="cloud-save"]').click();
+    ok(IR.cloud.enabled() === true && IR.cloud.config().owner === 'go2dach', 'Cloud-Config persistiert + aktiv');
+    ok(/data-repo\/dashboard.html/.test(d.querySelector('#app').innerHTML), 'Dashboard-Link gezeigt');
+    IR.cloud.setConfig({ owner: '', repo: '', token: '' });
+
     console.log('\nUI: ' + passes + ' ok, ' + fails + ' fail');
     process.exit(fails ? 1 : 0);
   } catch (e) {

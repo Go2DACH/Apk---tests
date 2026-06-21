@@ -5,6 +5,7 @@ on:
     branches: ["claude/fresh-start-v9zow4"]
     paths:
       - "index.html"
+      - "dashboard.html"
       - "sw.js"
       - "manifest.webmanifest"
       - "css/**"
@@ -12,6 +13,7 @@ on:
       - "data/**"
       - "assets/**"
       - "tools/**"
+      - "cloud/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -35,7 +37,7 @@ jobs:
       - name: Stage site
         run: |
           mkdir -p _site
-          cp -r index.html sw.js manifest.webmanifest css js data assets tools mobile desktop README.md _site/
+          cp -r index.html dashboard.html sw.js manifest.webmanifest css js data assets tools mobile desktop windows cloud README.md _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

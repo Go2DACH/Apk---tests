@@ -45,6 +45,7 @@
       : state.view === 'native' ? viewNative()
       : state.view === 'dashboard' ? viewDashboard()
       : state.view === 'hosts' ? viewHosts()
+      : state.view === 'cloud' ? viewCloud()
       : state.view === 'tools' ? viewTools() : viewHome());
     var v = state.view;
     if (v === 'home') root.innerHTML = viewHome();
@@ -52,6 +53,7 @@
     else if (v === 'native') root.innerHTML = viewNative();
     else if (v === 'dashboard') root.innerHTML = viewDashboard();
     else if (v === 'hosts') root.innerHTML = viewHosts();
+    else if (v === 'cloud') root.innerHTML = viewCloud();
     else if (v === 'pb') root.innerHTML = viewPlaybook();
     else if (v === 'evidence') root.innerHTML = viewEvidence();
     else if (v === 'ioc') root.innerHTML = viewIoc();
@@ -69,7 +71,8 @@
       '<button class="mini" data-act="new" data-id="generic">Generisches Playbook starten</button>' +
       '<button class="mini" data-act="goto-native">📡 Geraete &amp; Forensik (nativ)</button>' +
       '<button class="mini" data-act="goto-hosts">🖧 Forensik-Hosts (bis 10)</button>' +
-      '<button class="mini" data-act="goto-dashboard">📊 Live-Dashboard</button></section>';
+      '<button class="mini" data-act="goto-dashboard">📊 Live-Dashboard</button>' +
+      '<button class="mini" data-act="goto-cloud">☁️ Cloud &amp; Veroeffentlichen</button></section>';
     h += '<section class="card"><h2>Schnellstart (Beispiele)</h2><div class="pbgrid">';
     IR.playbooks.filter(function (p) { return p.id !== 'generic'; }).forEach(function (p) {
       h += '<button class="pbcard" data-act="new" data-id="' + p.id + '">' +
@@ -298,6 +301,73 @@
     return h;
   }
 
+  /* ----------------------------------------------------- Cloud (Git-Speicher) */
+  function cloudHostFiles() {
+    var out = [];
+    IR.hosts.list().forEach(function (host) {
+      var d = hostData(host.id);
+      (d.files || []).forEach(function (f) { out.push({ path: f.path, size: f.size, host: host.label, url: IR.hosts.downloadUrl(host, f.path) }); });
+    });
+    return out;
+  }
+  function cloudRefresh() {
+    IR.cloud.pullIndex().then(function (idx) { state.cloudIdx = idx; render(); })
+      .catch(function (e) { state.cloudMsg = 'Index laden fehlgeschlagen: ' + (e && e.message || e); state.cloudErr = true; render(); });
+  }
+  function cloudPublish(cases) {
+    if (!IR.cloud.enabled()) { state.cloudMsg = 'Bitte zuerst Owner/Repo/Token speichern.'; state.cloudErr = true; state.view = 'cloud'; return render(); }
+    if (!cases || !cases.length) { toast('Keine Faelle'); return; }
+    var files = cloudHostFiles(), done = 0, errs = 0, total = cases.length;
+    state.cloudMsg = 'Veroeffentliche ' + total + ' Fall/Faelle …'; state.cloudErr = false; render();
+    cases.reduce(function (chain, cse) {
+      return chain.then(function () {
+        return IR.cloud.publish(cse, files).then(function () { done++; }, function () { errs++; });
+      });
+    }, Promise.resolve()).then(function () {
+      state.cloudMsg = done + ' veroeffentlicht' + (errs ? ', ' + errs + ' Fehler (Token/Repo pruefen)' : '') + '.';
+      state.cloudErr = errs > 0;
+      toast(state.cloudMsg);
+      cloudRefresh();
+    });
+  }
+
+  function viewCloud() {
+    var cfg = IR.cloud.config(), on = IR.cloud.enabled();
+    var h = '<section class="card"><div class="row"><h2>☁️ Cloud &amp; Veroeffentlichen</h2>' +
+      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      '<p class="muted">Git als Cloud-Speicher: die App (zentraler Arbeitspunkt) veroeffentlicht Vorfaelle ins Repo, das Pages-Dashboard zeigt sie. Endpoints (Boot-Stick/Windows) liefern die Forensik-Daten zu. Der Token (fein granularer PAT, <code>Contents: write</code>) bleibt lokal im Browser.</p>' +
+      '<div class="row"><label>Owner</label><input id="clOwner" value="' + U.esc(cfg.owner) + '" placeholder="z.B. go2dach"></div>' +
+      '<div class="row"><label>Repo</label><input id="clRepo" value="' + U.esc(cfg.repo) + '" placeholder="z.B. Apk---tests"></div>' +
+      '<div class="row"><label>Branch</label><input id="clBranch" value="' + U.esc(cfg.branch) + '" placeholder="main"></div>' +
+      '<div class="row"><label>Token (PAT)</label><input id="clToken" type="password" value="' + U.esc(cfg.token) + '" placeholder="ghp_… (bleibt lokal)"></div>' +
+      '<div class="row"><button data-act="cloud-save">Speichern</button>' +
+      '<span class="badge">' + (on ? 'konfiguriert' : 'nicht konfiguriert') + '</span></div>';
+    if (cfg.owner && cfg.repo) {
+      var du = IR.cloud.dashboardUrl();
+      h += '<small class="muted">Dashboard: <a href="' + U.esc(du) + '" target="_blank">' + U.esc(du) + '</a></small>';
+    }
+    h += '</section>';
+
+    h += '<section class="card"><h3>Veroeffentlichen</h3>' +
+      '<p class="muted">Schlanke Snapshots (Kennzahlen, Report, Datei-Verweise auf die Hosts) ins Repo schreiben. Rohdaten bleiben auf den Endpoints.</p>' +
+      '<div class="row"><button class="mini" data-act="cloud-pub-all">Alle Faelle veroeffentlichen</button>' +
+      '<button class="mini" data-act="cloud-refresh">Cloud-Index laden</button></div>';
+    if (state.cloudMsg) h += '<small class="' + (state.cloudErr ? 'warn' : 'muted') + '">' + U.esc(state.cloudMsg) + '</small>';
+    h += '</section>';
+
+    if (state.cloudIdx) {
+      var inc = (state.cloudIdx.incidents || []);
+      h += '<section class="card"><h3>In der Cloud (' + inc.length + ')</h3>';
+      if (!inc.length) h += '<p class="muted">Noch nichts veroeffentlicht.</p>';
+      inc.slice().reverse().forEach(function (e) {
+        h += '<div class="row caseitem"><span><strong>' + U.esc(e.title) + '</strong>' +
+          '<small>' + U.esc(e.org || '') + ' · ' + U.esc(e.status || '') + ' · ' + (e.progress || 0) + ' % · ' + (e.files || 0) + ' Datei(en)</small></span></div>';
+      });
+      h += '</section>';
+    }
+    return h;
+  }
+
   function viewPlaybook() {
     var pb = IR.Case.playbook(c);
     var pr = IR.engine.progress(pb, c);
@@ -427,7 +497,8 @@
       '<button class="mini" data-act="rep-dl">.md herunterladen</button>' +
       '<button class="mini" data-act="case-dl">Fall (JSON) exportieren</button>' +
       '<button class="mini" data-act="tl-csv">Timeline CSV</button>' +
-      '<button class="mini" data-act="sitrep">Lagebericht</button></div>' +
+      '<button class="mini" data-act="sitrep">Lagebericht</button>' +
+      '<button class="mini" data-act="cloud-publish">☁️ In Cloud veroeffentlichen</button></div>' +
       '<div class="row"><button class="mini" data-act="import-json">Daten importieren (JSON)</button>' +
       '<button class="mini" data-act="import-paste">Quick-Paste IOCs</button></div>' +
       '<small class="muted">Ingest-Bundles vom Smartphone/Desktop (mobile/desktop-Skripte) hier einlesen.</small></section>' +
@@ -483,6 +554,18 @@
       return render();
     }
     if (act === 'dash-lock') { state.dashUnlocked = false; return render(); }
+    // ---- Cloud (Git-Speicher) ----
+    if (act === 'goto-cloud') { state.view = 'cloud'; if (IR.cloud.config().owner) cloudRefresh(); return render(); }
+    if (act === 'cloud-save') {
+      IR.cloud.setConfig({ owner: ($('#clOwner') || {}).value, repo: ($('#clRepo') || {}).value, branch: ($('#clBranch') || {}).value || 'main', token: ($('#clToken') || {}).value });
+      toast(IR.cloud.enabled() ? 'Cloud gespeichert' : 'Gespeichert – Owner/Repo/Token unvollstaendig'); return render();
+    }
+    if (act === 'cloud-refresh') { cloudRefresh(); return; }
+    if (act === 'cloud-publish') {
+      if (!c) { toast('Kein Fall aktiv'); return; }
+      cloudPublish([c]); return;
+    }
+    if (act === 'cloud-pub-all') { cloudPublish(IR.store.list()); return; }
     if (act === 'native-run') { if (!IR.native.run(id)) toast('Nur in der APK nativ verfuegbar'); return; }
     if (act === 'native-reload') { IR.native.reloadData(); return; }
     if (act === 'new') {

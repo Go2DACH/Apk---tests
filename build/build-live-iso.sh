@@ -28,7 +28,7 @@ grep -vE '^\s*#|^\s*$' "$ROOT/build/packages.list" > config/package-lists/forens
 
 # App + Skripte in das Image legen (/opt/ir-pilot)
 mkdir -p config/includes.chroot/opt/ir-pilot
-for d in index.html sw.js manifest.webmanifest css js data tools mobile desktop windows assets README.md; do
+for d in index.html dashboard.html sw.js manifest.webmanifest css js data tools mobile desktop windows cloud assets README.md; do
   [ -e "$ROOT/$d" ] && cp -a "$ROOT/$d" config/includes.chroot/opt/ir-pilot/
 done
 

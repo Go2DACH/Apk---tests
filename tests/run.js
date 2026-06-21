@@ -3,6 +3,7 @@
 require('../js/core.js');
 require('../js/native.js');
 require('../js/hosts.js');
+require('../js/cloud.js');
 require('../data/catalog.js');
 require('../data/comms.js');
 require('../data/toolkit.js');
@@ -293,5 +294,66 @@ group('Forensik-Hosts (bis 10)', function () {
   ok(H.list().length === 0, 'aufgeraeumt');
 });
 
-console.log('\n' + passes + ' ok, ' + fails + ' fail');
-process.exit(fails ? 1 : 0);
+function finish() { console.log('\n' + passes + ' ok, ' + fails + ' fail'); process.exit(fails ? 1 : 0); }
+
+// ---- Cloud-Sync (Git als Speicher), mit simuliertem GitHub-fetch ----
+function fakeGitHub() {
+  var store = {};  // path -> {sha, content}
+  globalThis.fetch = function (url, opts) {
+    opts = opts || {}; var method = opts.method || 'GET';
+    function res(ok, status, json) { return Promise.resolve({ ok: ok, status: status, json: function () { return Promise.resolve(json); } }); }
+    if (url.indexOf('raw.githubusercontent.com') >= 0) {
+      var rm = url.match(/\/main\/(.+?)\?/); var rp = rm && rm[1];
+      var rf = store[rp];
+      return res(!!rf, rf ? 200 : 404, rf ? JSON.parse(rf.content) : { incidents: [] });
+    }
+    var m = url.match(/\/contents\/([^?]+)/); var path = m && decodeURIComponent(m[1]);
+    if (method === 'GET') {
+      var f = store[path];
+      if (!f) return res(false, 404, {});
+      return res(true, 200, { sha: f.sha, content: Buffer.from(f.content, 'utf8').toString('base64') });
+    }
+    if (method === 'PUT') {
+      var body = JSON.parse(opts.body);
+      var content = Buffer.from(body.content, 'base64').toString('utf8');
+      store[path] = { sha: 'sha' + (Object.keys(store).length + 1), content: content };
+      return res(true, 200, { content: { path: path } });
+    }
+    return res(false, 405, {});
+  };
+  return store;
+}
+
+group('Cloud-Sync (Git-Speicher)', function () {
+  var C = IR.cloud;
+  ok(C && C.DASH_PIN === '1374', 'Dashboard-PIN 1374');
+  ok(C.enabled() === false, 'ohne Config nicht aktiv');
+  C.setConfig({ owner: 'go2dach', repo: 'data-repo', branch: 'main', token: 'ghp_x' });
+  ok(C.enabled() === true, 'mit Owner/Repo/Token aktiv');
+  ok(C.apiUrl('cloud/incidents/index.json').indexOf('api.github.com/repos/go2dach/data-repo/contents/') >= 0, 'API-URL korrekt');
+  ok(C.rawUrl('cloud/incidents/index.json').indexOf('raw.githubusercontent.com/go2dach/data-repo/main/') >= 0, 'raw-URL korrekt');
+  ok(C.dashboardUrl() === 'https://go2dach.github.io/data-repo/dashboard.html', 'Dashboard-URL korrekt');
+  var c = IR.Case.create({ playbookId: 'generic', title: 'Cloud-Test', org: 'Muster GmbH', classification: 'TLP:AMBER' });
+  c.playbook = IR.engine.playbook('generic');
+  var snap = C.snapshot(c, [{ path: 'intake/x.zip', size: 10, host: 'Kasse', url: 'http://h/download' }]);
+  ok(snap.id === c.id && snap.title === 'Cloud-Test' && snap.files.length === 1, 'Snapshot mit Datei-Verweis');
+  ok(typeof snap.report === 'string' && snap.report.indexOf('Incident-Report') >= 0, 'Snapshot enthaelt Report');
+  ok(C.indexEntry(snap).files === 1 && C.indexEntry(snap).report === undefined, 'Index-Eintrag schlank (Datei-Anzahl, kein Report)');
+});
+
+var store = fakeGitHub();
+IR.cloud.publish(IR.Case.create({ playbookId: 'generic', title: 'Publish-Test', org: 'X' }), [])
+  .then(function (r) {
+    ok(r && r.ok === true, 'publish meldet ok');
+    ok(Object.keys(store).some(function (p) { return /cloud\/incidents\/.+\.json/.test(p) && p.indexOf('index') < 0; }), 'Fall-Snapshot geschrieben');
+    var idx = store['cloud/incidents/index.json'];
+    ok(idx && JSON.parse(idx.content).incidents.length === 1, 'Index enthaelt 1 Vorfall');
+    return IR.cloud.pullIndex();
+  })
+  .then(function (idx) {
+    ok(idx && idx.incidents && idx.incidents.length === 1, 'pullIndex liest Vorfall (raw)');
+    ok(idx.incidents[0].title === 'Publish-Test', 'pullIndex Titel korrekt');
+    delete globalThis.fetch;
+    finish();
+  })
+  .catch(function (e) { ok(false, 'Cloud publish/pull Exception: ' + (e && e.stack || e)); delete globalThis.fetch; finish(); });

@@ -9,6 +9,29 @@ Fold 5.
 > Gebaut für den Ernstfall: Du hast nur Handy, USB-Stick und USB-Ethernet dabei
 > und musst sofort strukturiert, beweissicher und meldepflicht-konform arbeiten.
 
+## Gesamtarchitektur
+
+```
+  Endpoints (Forensik)            Zentraler Arbeitspunkt        Cloud-Speicher        Pages
+  ┌────────────────────┐         ┌─────────────────────┐      ┌──────────────┐   ┌──────────────┐
+  │ Boot-Stick          │  intake │  IR-Pilot App        │ Git  │ GitHub-Repo  │raw│ dashboard.html│
+  │ (control-server.py) │────────►│  (APK/PWA, dein Handy)│─────►│ cloud/       │──►│ Live-Dashboard│
+  │ Windows IR-Collect  │  upload │  Faelle · Hosts · Pub │ API  │ incidents/   │   │ (PIN 1374)   │
+  └────────────────────┘         └─────────────────────┘      └──────────────┘   └──────────────┘
+     sammeln + Rohdaten              steuern + aggregieren        Metadaten/Report     lesen/zeigen
+```
+
+- **Endpoints** sammeln Forensik (Disk-Image, Triage, Wireshark, Discover) und
+  liefern sie an die App; **Rohdaten bleiben auf dem Endpoint** (Host-Download).
+- **App = zentraler Arbeitspunkt**: führt Playbooks, steuert bis zu 10 Hosts,
+  **veröffentlicht** Vorfälle in die Cloud.
+- **Cloud = das Git-Repo** (kein eigener Server): die App schreibt schlanke
+  Snapshots via GitHub-API nach `cloud/incidents/`.
+- **Pages-Dashboard** (`dashboard.html`) liest diese Dateien **statisch** und zeigt
+  alle aktiven Incidents; Dateien/Reports nach **PIN 1374**.
+
+Details unten: „Mehrere Forensik-Hosts …" und „Cloud-Speicher (Git) & Dashboard".
+
 ## Architektur: Pages (Daten/UI) + APK (Arbeit)
 
 Eine Codebasis, zwei Auslieferungswege – als **Hybrid**:
@@ -189,10 +212,31 @@ fernsteuerbar**.
   Hosts (Dateizahl/Größe) auf einen Blick. Der Download **aller** gesammelten
   Dateien ist per **PIN 1374** geschützt.
 
-> Architektur-Hinweis (ehrlich): GitHub Pages ist statisch und kann keine Uploads
-> annehmen. „Reporting zurück in die App" heißt deshalb: das **Dashboard in der
-> App** aggregiert live von den verbundenen Hosts (Boot-Sticks). Der Host ist die
-> Sammelstelle; „Cloud" ist das Weiterreichen der dort liegenden Dateien.
+## Cloud-Speicher (Git) & Pages-Dashboard
+
+GitHub Pages ist statisch und kann keine Uploads annehmen – darum ist **das
+Git-Repo selbst der Cloud-Speicher**:
+
+- **Veröffentlichen (App):** Unter „☁️ Cloud" Owner/Repo/Branch + **fein
+  granularen PAT** (`Contents: write`, nur fürs Daten-Repo) hinterlegen – der Token
+  bleibt **lokal im Browser**. „In Cloud veröffentlichen" (Bericht-Tab oder „Alle
+  Fälle") schreibt via GitHub-Contents-API `cloud/incidents/<id>.json` und pflegt
+  `cloud/incidents/index.json` (`js/cloud.js`).
+- **Snapshot-Inhalt:** Kennzahlen, Status, Fortschritt, IOC-/Beweis-Zahlen,
+  **Incident-Report (Markdown)** und **Datei-Verweise** auf die Hosts (URL + Host).
+  Große Rohdaten (pcap/Images) bleiben auf den Endpoints.
+- **Dashboard (Pages):** `dashboard.html` liest `cloud/incidents/index.json`
+  **statisch** (gleiches Repo, kein Token) oder via `?repo=owner/name` aus einem
+  anderen öffentlichen Daten-Repo. Es zeigt alle aktiven Incidents; Dateien/Reports
+  erscheinen nach **PIN 1374**. Deploy über `.github/workflows/pages.yml`.
+- **Privat & vertraulich:** Für sensible Fälle ein **privates** Daten-Repo nutzen
+  (dann brauchen auch Dashboard-Leser einen Token bzw. internes Hosting). Layout
+  und Sicherheitshinweise: `cloud/README.md`.
+
+> Ehrlich eingeordnet: „Reporting während des Vorfalls zurück in die Pages-App"
+> heißt hier **App → Git (Cloud) → Pages-Dashboard**. Zusätzlich aggregiert das
+> **App-interne** Dashboard (📊) live direkt von den verbundenen Hosts – auch ohne
+> Cloud, wenn nur lokal gearbeitet wird.
 
 ### Bootbares Forensik-Linux — `build/`
 - `build-live-iso.sh` — baut mit **Debian live-build** ein bootbares Forensik-Linux
@@ -220,7 +264,7 @@ materialisiert die Skripte nach `tools/`.
 ## Tests
 
 ```bash
-npm test          # Logik (run.js) + UI-Smoke (ui.js) + Control-Server (control-server.sh)
+npm test          # Logik (run.js) + UI (ui.js) + Dashboard (dashboard.js) + Control-Server (control-server.sh)
 ```
 
 ## Projektstruktur
@@ -228,10 +272,12 @@ npm test          # Logik (run.js) + UI-Smoke (ui.js) + Control-Server (control-
 ```
 index.html              App-Shell
 css/app.css             Mobile-first UI (dunkel)
+index.html / dashboard.html  App-Shell + eigenständiges Pages-Dashboard
 js/core.js              Namespace, Case-Modell, Engine, Persistenz
 js/hosts.js             Forensik-Hosts (bis 10 Boot-Sticks fernsteuern)
+js/cloud.js             Cloud-Sync (GitHub-Repo als Speicher)
 js/report.js            Incident-Report + Lagebericht
-js/app.js               UI-Controller (Vanilla JS) + Hosts/Dashboard
+js/app.js               UI-Controller (Vanilla JS) + Hosts/Dashboard/Cloud
 data/playbooks.js       9 Fälle + generischer Lifecycle
 data/comms.js           Krisenkommunikation + Meldepflichten
 data/toolkit.js         Forensik-Skripte (Quelle)
@@ -239,6 +285,7 @@ tools/                  materialisierte Triage-Skripte
 mobile/                 Smartphone-Skripte (Termux) + hid-keyboard.md (no-root/Tastatur)
 desktop/                Offline-Collection + control-server.py, netup.sh, discover.sh, wireshark-capture.sh
 windows/                Windows-Sammler (IR-Collect.cmd/ir-collect.ps1) fuer den USB-Stick
+cloud/                  Git-Cloud-Speicher (incidents/index.json + Snapshots)
 build/                  Live-ISO-Builder, Toolkit-USB, Einsatzkarten/Screenshots
 dist/                   erzeugte PDFs/Screenshots
 manifest.webmanifest    PWA-Manifest
