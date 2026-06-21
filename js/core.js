@@ -177,13 +177,14 @@
       try { return JSON.parse(ls.getItem(this.key) || '[]'); } catch (e) { return []; }
     },
     saveAll: function (arr) {
-      var ls = this._ls(); if (!ls) { IR._mem = arr; return; }
-      ls.setItem(this.key, JSON.stringify(arr));
+      var ls = this._ls(); if (!ls) { IR._mem = arr; return true; }
+      try { ls.setItem(this.key, JSON.stringify(arr)); this.quotaError = false; return true; }
+      catch (e) { this.quotaError = true; IR._mem = arr; return false; }  // Quota o.ae.: in-memory halten, nicht abstuerzen
     },
     save: function (c) {
       var all = this.list(), i = all.findIndex(function (x) { return x.id === c.id; });
       if (i >= 0) all[i] = c; else all.push(c);
-      this.saveAll(all); return c;
+      return this.saveAll(all);   // true = persistiert, false = nur im Speicher (Quota)
     },
     get: function (id) { return this.list().filter(function (x) { return x.id === id; })[0] || null; },
     remove: function (id) { this.saveAll(this.list().filter(function (x) { return x.id !== id; })); }

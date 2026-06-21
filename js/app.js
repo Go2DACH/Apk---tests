@@ -5,7 +5,7 @@
   var state = { caseId: null, view: 'home' };
   var c = null; // aktueller Fall
 
-  function save() { if (c) IR.store.save(c); }
+  function save() { if (c) { var okp = IR.store.save(c); if (okp === false && !state.quotaWarned) { state.quotaWarned = true; toast('⚠ Speicher voll – bitte Bericht/Fotos exportieren & alte Fälle löschen'); } return okp; } return true; }
   function setCase(id) { c = IR.store.get(id); state.caseId = id; state.view = 'pb'; render(); }
   function go(v) { state.view = v; render(); }
 
@@ -881,9 +881,13 @@
     if (camera) inp.setAttribute('capture', 'environment');
     inp.addEventListener('change', function () {
       var f = inp.files && inp.files[0]; if (!f) return;
-      downscaleImage(f, 1280, 0.7, function (dataUrl) {
-        IR.Case.addPhoto(c, { name: f.name || 'Foto', host: host, dataUrl: dataUrl });
-        save(); toast('Foto erfasst'); render();
+      downscaleImage(f, 1200, 0.65, function (dataUrl) {
+        var ph = IR.Case.addPhoto(c, { name: f.name || 'Foto', host: host, dataUrl: dataUrl });
+        if (save() === false) {            // Quota: Foto zuruecknehmen, damit der Fall speicherbar bleibt
+          IR.Case.removePhoto(c, ph.id); save();
+          toast('⚠ Speicher voll – Foto nicht gespeichert. Bericht als PDF exportieren, dann erneut.');
+        } else { toast('Foto erfasst'); }
+        render();
       });
     });
     inp.click();

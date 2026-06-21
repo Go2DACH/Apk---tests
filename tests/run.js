@@ -326,6 +326,20 @@ group('KI-Assistent (Request)', function () {
   ok(body.messages.length === 1 && body.messages[0].role === 'user', 'Nachricht im Body');
 });
 
+group('Speicher-Quota (Daten-Sicherheit)', function () {
+  var realLs = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  var memBackup = IR._mem;
+  // Fake-localStorage, das bei setItem eine Quota-Exception wirft
+  globalThis.localStorage = { _d: { ir_pilot_cases: '[]' }, getItem: function (k) { return this._d[k] || null; }, setItem: function () { throw new Error('QuotaExceededError'); } };
+  var c = IR.Case.create({ playbookId: 'ransomware', title: 'Quota' });
+  var ok1 = IR.store.save(c);
+  ok(ok1 === false, 'save() meldet false bei Quota (kein Absturz)');
+  ok(IR.store.quotaError === true, 'quotaError-Flag gesetzt');
+  ok(IR.store.list().length >= 0, 'list() bleibt benutzbar nach Quota');
+  if (realLs) Object.defineProperty(globalThis, 'localStorage', realLs); else { try { delete globalThis.localStorage; } catch (e) { globalThis.localStorage = undefined; } }
+  IR._mem = memBackup; IR.store.quotaError = false;
+});
+
 group('IDS-Datenquelle & Ingest (Assets/Vulns/Alerts)', function () {
   var c = IR.Case.create({ playbookId: 'ransomware', title: 'IDS-Test' });
   var bundle = {
