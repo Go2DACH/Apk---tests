@@ -1,19 +1,5 @@
 {
   "schema": 1,
-  "updated": "2026-06-21T15:25:25.935Z",
-  "incidents": [
-    {
-      "id": "qa-roundtrip",
-      "title": "QA-Roundtrip (Test)",
-      "org": "IR-Pilot QA",
-      "status": "confirmed",
-      "severity": "kritisch",
-      "phase": "Erstbewertung – Vorfall oder Fehlalarm?",
-      "progress": 46,
-      "done": 13,
-      "total": 28,
-      "files": 2,
-      "updated": "2026-06-21T15:25:25.935Z"
-    }
-  ]
+  "updated": null,
+  "incidents": []
 }
