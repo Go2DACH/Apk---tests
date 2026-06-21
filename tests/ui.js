@@ -75,6 +75,14 @@ function run() {
     var clog = d.querySelector('[data-act="comm-log"]');
     if (clog) { clog.click(); }
 
+    // Werkzeug-Zugriff aus offenem Fall (Geräte-Tab) – Fall bleibt aktiv (Regressionsschutz)
+    [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'native'; })[0].click();
+    ok(!!d.querySelector('[data-act="goto-sources"]') && !!d.querySelector('[data-act="goto-hosts"]'), 'Datenquellen/Hosts aus Geräte-Tab erreichbar (Fall offen)');
+    d.querySelector('[data-act="goto-sources"]').click();
+    ok(!!d.querySelector('[data-act="src-discover"]') && !!d.querySelector('[data-act="back-case"]'), 'Quellen-Ansicht mit aktivem Fall + Zurück-zum-Fall');
+    d.querySelector('[data-act="back-case"]').click();
+    ok(!!d.querySelector('.derivation'), 'back-case kehrt ins Playbook zurueck (Fall aktiv)');
+
     // Tools sichtbar mit Skript
     [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'tools'; })[0].click();
     ok(d.querySelectorAll('.tool').length >= 5, 'Tools-Ansicht listet Skripte');

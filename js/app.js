@@ -165,10 +165,19 @@
     var h = '<section class="card"><h2>Geraete &amp; Forensik</h2>' +
       '<div class="row"><span class="badge">' + (isN ? 'APK · ' + plat : 'Browser · ' + plat) + '</span>' +
       '<button class="mini" data-act="native-reload">Daten aktualisieren</button>' +
-      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      backLink() + '</div>' +
       '<p class="muted">' + (isN
         ? 'Native Aktionen verfuegbar – privilegierte Forensik direkt vom Geraet.'
         : 'Im Browser sind privilegierte Aktionen gesperrt (Sandbox). Unten die Skripte/Anleitungen; in der APK laufen sie nativ.') + '</p></section>';
+    h += '<section class="card"><div class="row"><strong>🧭 Werkzeuge &amp; Datenquellen</strong>' +
+      (c ? '<span class="badge">Fall: ' + U.esc(c.title) + '</span>' : '') + '</div>' +
+      '<p class="muted">' + (c ? 'Bleibt mit dem offenen Fall verbunden – „⤵ in Fall" speist direkt ins Playbook.' : 'Ohne offenen Fall: zum Übernehmen erst einen Fall öffnen.') + '</p>' +
+      '<div class="row wrap">' +
+      '<button class="mini" data-act="goto-hosts">🖧 Forensik-Hosts</button>' +
+      '<button class="mini" data-act="goto-sources">🗄️ Datenquellen (IDS)</button>' +
+      '<button class="mini" data-act="goto-dashboard">📊 Dashboard</button>' +
+      '<button class="mini" data-act="goto-cloud">☁️ Cloud</button>' +
+      '<button class="mini" data-act="goto-assistant">🤖 Assistent</button></div></section>';
     h += '<section class="card"><div class="row"><strong>📦 Werkzeug-Kit (Boot-Stick · Windows · Server · App)</strong></div>' +
       '<p class="muted">Eine Quelle für alles On-Site: Forensik-Linux bauen (<code>build-live-iso.sh</code>), ' +
       '<code>control-server.py</code>, Windows-Sammler und die App selbst – ist in dieser App enthalten.</p>' +
@@ -260,7 +269,7 @@
   function viewHosts() {
     var list = IR.hosts.list();
     var h = '<section class="card"><div class="row"><h2>🖧 Forensik-Hosts</h2>' +
-      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      backLink() + '</div>' +
       '<p class="muted">Bis zu ' + IR.hosts.MAX + ' gesicherte Forensik-Sticks fernsteuern. Jeder Host = ein Boot-Stick mit <code>control-server.py</code>. Adresse + Token werden beim Start auf der Stick-Konsole angezeigt. Alle gesammelten Dateien laufen hier zusammen.</p>' +
       '<div class="row"><button class="mini" data-act="host-discover">🔌 USB/Netz: Hosts automatisch suchen</button>' +
       (c ? '<button class="mini" data-act="host-merge-all">⤵ Alle Befunde in Fall „' + U.esc(c.title) + '"</button>' : '<small class="muted">Fall oeffnen, um Befunde direkt ins Playbook zu uebernehmen.</small>') + '</div>';
@@ -307,7 +316,7 @@
   function viewDashboard() {
     var cases = IR.store.list(), hosts = IR.hosts.list();
     var h = '<section class="card"><div class="row"><h2>📊 Live-Dashboard</h2>' +
-      '<button class="mini" data-act="goto-home">‹ Start</button>' +
+      backLink() +
       '<button class="mini" data-act="dash-refresh">Alle Hosts aktualisieren</button></div>' +
       '<p class="muted">Laufende Vorfaelle &amp; verbundene Forensik-Hosts auf einen Blick. Dateien werden nach PIN-Eingabe zum Download freigeschaltet.</p></section>';
 
@@ -395,7 +404,7 @@
   function viewCloud() {
     var cfg = IR.cloud.config(), on = IR.cloud.enabled();
     var h = '<section class="card"><div class="row"><h2>☁️ Cloud &amp; Veroeffentlichen</h2>' +
-      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      backLink() + '</div>' +
       '<p class="muted">Git als Cloud-Speicher: die App (zentraler Arbeitspunkt) veroeffentlicht Vorfaelle ins Repo, das Pages-Dashboard zeigt sie. Endpoints (Boot-Stick/Windows) liefern die Forensik-Daten zu. Der Token (fein granularer PAT, <code>Contents: write</code>) bleibt lokal im Browser.</p>' +
       '<div class="row"><label>Owner</label><input id="clOwner" value="' + U.esc(cfg.owner) + '" placeholder="z.B. go2dach"></div>' +
       '<div class="row"><label>Repo</label><input id="clRepo" value="' + U.esc(cfg.repo) + '" placeholder="z.B. Apk---tests"></div>' +
@@ -446,7 +455,7 @@
   function viewSources() {
     var list = IR.sources.list();
     var h = '<section class="card"><div class="row"><h2>🗄️ Datenquellen (IDS / Asset / Schwachstellen)</h2>' +
-      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      backLink() + '</div>' +
       '<p class="muted">Externe Daten-Lieferanten (z.B. dein IDS-Tool mit Asset-Inventar &amp; Schwachstellen) per JSON-URL anbinden. ' +
       'Die App ruft ab und übernimmt Assets, Schwachstellen, IOCs, Hosts und IDS-Alerts in den aktiven Fall. ' +
       'Erwartetes Format: <code>docs/integration-ids.md</code>.</p>';
@@ -498,7 +507,7 @@
     var A = IR.assistant, cfg = A.config(), on = A.enabled();
     var hist = state.asstHistory || (state.asstHistory = []);
     var h = '<section class="card"><div class="row"><h2>🤖 Assistent (KI)</h2>' +
-      '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
+      backLink() + '</div>' +
       '<p class="muted">Fachfragen direkt im Einsatz (IR/OT-Forensik, Schutzgeräte wie SIPROTEC, Log-Sicherung). Nutzt deinen <b>eigenen</b> Anthropic-API-Key – bleibt lokal, wird nie übertragen/committet. Braucht Internet.</p>' +
       '<div class="row"><label>API-Key</label><input id="asstKey" type="password" value="' + U.esc(cfg.apiKey) + '" placeholder="sk-ant-…"></div>' +
       '<div class="row"><label>Modell</label><select id="asstModel">' +
@@ -722,6 +731,8 @@
   }
 
   function sevClass(s) { return s === 'kritisch' ? 'crit' : s === 'hoch' ? 'high' : 'med'; }
+  // Kontext-Zurück: mit offenem Fall zurueck ins Playbook (Fall bleibt aktiv), sonst Start.
+  function backLink() { return c ? '<button class="mini" data-act="back-case">‹ Zurück zum Fall</button>' : '<button class="mini" data-act="goto-home">‹ Start</button>'; }
 
   /* -------------------------------------------------------------- Events */
   document.addEventListener('click', function (e) {
@@ -742,6 +753,7 @@
     if (act === 'goto-hosts') { state.view = 'hosts'; return render(); }
     if (act === 'goto-dashboard') { state.view = 'dashboard'; IR.hosts.list().forEach(function (host) { if (!hostData(host.id).info) hostRefresh(host.id); }); return render(); }
     if (act === 'goto-home') { state.caseId = null; c = null; state.view = 'home'; return render(); }
+    if (act === 'back-case') { state.view = c ? 'pb' : 'home'; if (!c) state.caseId = null; return render(); }
     // ---- Forensik-Hosts ----
     if (act === 'host-add') {
       try {
