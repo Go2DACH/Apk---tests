@@ -766,23 +766,24 @@
     }
   });
 
-  // Bericht als PDF: druckfertiges HTML -> neues Fenster -> Drucken/„Als PDF speichern".
-  // In der APK nutzt IR.native.print() den Android-PDF-Druck; im Browser window.print().
+  // Bericht als PDF: druckt NUR den Bericht (Print-Stylesheet) – funktioniert im
+  // Browser (window.print) wie in der APK (Android-PDF-Druck via Bridge). Kein
+  // window.open noetig (WebViews blockieren das).
   function reportPdf() {
-    var html = IR.report.printableHTML(c);
-    var w = window.open('', '_blank');
-    if (w && w.document) {
-      w.document.open(); w.document.write(html); w.document.close();
-      setTimeout(function () { try { (IR.native.isNative() ? w : w).focus(); } catch (e) {} (w.print ? w.print() : null); }, 400);
-      toast('Druckansicht geöffnet → „Als PDF speichern"');
-      return;
-    }
-    // Fallback (Popup blockiert / WebView): in-place drucken über native Bridge
-    var box = document.getElementById('printbox') || (function () { var d = document.createElement('div'); d.id = 'printbox'; document.body.appendChild(d); return d; })();
-    box.innerHTML = '<iframe id="pf" style="position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff;z-index:9999"></iframe>';
-    var ifr = document.getElementById('pf');
-    var doc = ifr.contentWindow.document; doc.open(); doc.write(html); doc.close();
-    setTimeout(function () { IR.native.print(); toast('Drucken → „Als PDF speichern" (✕ schließt die Ansicht)'); }, 400);
+    var root = document.getElementById('printroot') ||
+      (function () { var d = document.createElement('div'); d.id = 'printroot'; document.body.appendChild(d); return d; })();
+    var photos = (c.photos || []).map(function (p) {
+      return '<figure class="pimg"><img src="' + (p.dataUrl || '') + '"><figcaption>' + U.esc(p.name) +
+        (p.host ? ' · ' + U.esc(p.host) : '') + (p.note ? ' – ' + U.esc(p.note) : '') + '</figcaption></figure>';
+    }).join('');
+    root.innerHTML = '<div class="preport">' + U.md(IR.report.markdown(c)) +
+      (photos ? '<h2>Fotos &amp; Screenshots</h2><div class="pgrid">' + photos + '</div>' : '') + '</div>';
+    document.body.classList.add('printing');
+    setTimeout(function () {
+      IR.native.print();
+      setTimeout(function () { document.body.classList.remove('printing'); }, 1500);
+    }, 250);
+    toast('Drucken → „Als PDF speichern"');
   }
 
   // Foto/Screenshot erfassen: Kamera (capture) oder Galerie/Datei; verkleinern -> dataURL.

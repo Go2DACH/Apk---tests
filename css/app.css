@@ -91,6 +91,17 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
 .bigbtn{display:block;width:100%;background:var(--acc);color:#04243f;border:0;border-radius:10px;
   padding:13px;font-size:15px;font-weight:800;margin:6px 0}
 .bigbtn:disabled{opacity:.4}
+#printroot{display:none}
+@media print{
+  body.printing .topbar,body.printing #nav,body.printing #app,body.printing #toast{display:none!important}
+  body.printing #printroot{display:block;color:#111;background:#fff;font:13px/1.5 system-ui,sans-serif}
+  body.printing #printroot h1{color:#123e63}body.printing #printroot h2{color:#1f4e79;border-bottom:1px solid #ccd}
+  body.printing #printroot .pgrid{display:flex;flex-wrap:wrap;gap:10px}
+  body.printing #printroot .pimg{width:46%;margin:0;page-break-inside:avoid}
+  body.printing #printroot .pimg img{width:100%;border:1px solid #ccd}
+  body.printing #printroot figcaption{font-size:11px;color:#556}
+  @page{margin:14mm}
+}
 .phgrid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
 .phc{margin:0;width:calc(50% - 5px);background:#0c2944;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .phc img{width:100%;height:120px;object-fit:cover;display:block}
