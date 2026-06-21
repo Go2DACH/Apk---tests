@@ -1,0 +1,67 @@
+# Paketliste fuer das bootbare Forensik-Linux (Debian live-build).
+# Aus den Playbooks abgeleitet: Datentraeger, Imaging, OT/Netz, Analyse.
+
+# --- Desktop / Basis ---
+task-xfce-desktop
+firefox-esr
+network-manager
+sudo
+gvfs
+
+# --- Partitionierung / Datentraeger (gparted & Co.) ---
+gparted
+gnome-disk-utility
+parted
+dosfstools
+exfatprogs
+ntfs-3g
+e2fsprogs
+hdparm
+smartmontools
+nvme-cli
+
+# --- Imaging / Recovery ---
+gddrescue
+ddrescue
+testdisk
+foremost
+ewf-tools
+libewf-dev
+dc3dd
+
+# --- Forensik / Analyse ---
+sleuthkit
+autopsy
+hashdeep
+exiftool
+binwalk
+yara
+chntpw
+regripper
+
+# --- Speicher / Timeline ---
+plaso
+python3
+python3-pip
+
+# --- Netzwerk / OT ---
+wireshark
+tshark
+tcpdump
+nmap
+ndiff
+arp-scan
+netcat-openbsd
+dnsutils
+curl
+wget
+openssh-client
+socat
+
+# --- Sonstiges ---
+git
+jq
+vim
+less
+unzip
+p7zip-full

@@ -207,5 +207,60 @@
     }
   };
 
+  /* --------------------------------------------------------------- Ingest */
+  // Importiert ein "Ingest-Bundle" (vom Smartphone/Desktop) in einen Fall:
+  // { source, ts, iocs:[{type,value,note}], hosts:[{ip,name,ports,note}],
+  //   notes:[str], timeline:[{ts,kind,text}], evidence:[{name,type,hash,...}] }
+  IR.ingest = {
+    schema: 1,
+    merge: function (c, bundle) {
+      bundle = bundle || {};
+      var added = { iocs: 0, hosts: 0, notes: 0, timeline: 0, evidence: 0 };
+      var seen = {};
+      c.iocs.forEach(function (x) { seen[x.type + '|' + x.value] = 1; });
+      (bundle.iocs || []).forEach(function (x) {
+        if (!x || !x.value) return;
+        var k = (x.type || 'sonstiges') + '|' + x.value;
+        if (seen[k]) return; seen[k] = 1;
+        IR.Case.addIoc(c, x.type || 'sonstiges', x.value, x.note || (bundle.source ? 'import:' + bundle.source : ''));
+        added.iocs++;
+      });
+      (bundle.hosts || []).forEach(function (h) {
+        if (!h) return;
+        var v = h.ip || h.name; if (!v) return;
+        IR.Case.addIoc(c, 'host', v, [h.name, h.ports, h.note].filter(Boolean).join(' · '));
+        added.hosts++;
+      });
+      (bundle.notes || []).forEach(function (n) { if (n) { IR.Case.log(c, 'ingest', String(n)); added.notes++; } });
+      (bundle.timeline || []).forEach(function (t) {
+        if (!t || !t.text) return;
+        c.timeline.push({ ts: t.ts || U.nowISO(), kind: t.kind || 'ingest', text: t.text, by: bundle.source || 'import' });
+        added.timeline++;
+      });
+      (bundle.evidence || []).forEach(function (e) {
+        if (!e || !e.name) return;
+        IR.Case.addEvidence(c, e); added.evidence++;
+      });
+      IR.Case.log(c, 'ingest', 'Import' + (bundle.source ? ' (' + bundle.source + ')' : '') + ': ' +
+        Object.keys(added).map(function (k) { return added[k] + ' ' + k; }).filter(function (s) { return s[0] !== '0'; }).join(', '));
+      return added;
+    },
+    // Aus Freitext IOCs grob extrahieren (Quick-Paste vom Handy)
+    fromText: function (text) {
+      var b = { source: 'paste', iocs: [] }, seen = {};
+      function add(type, value) { var k = type + '|' + value; if (!seen[k]) { seen[k] = 1; b.iocs.push({ type: type, value: value }); } }
+      (text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || []).forEach(function (m) { add('ip', m); });
+      (text.match(/\b[a-f0-9]{64}\b/gi) || []).forEach(function (m) { add('hash', m.toLowerCase()); });
+      (text.match(/\b[a-f0-9]{32}\b/gi) || []).forEach(function (m) { add('hash', m.toLowerCase()); });
+      (text.match(/[A-Za-z0-9.\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g) || []).forEach(function (m) { add('email', m); });
+      (text.match(/[A-Z]{2}\d{2}[A-Z0-9 ]{10,30}/g) || []).forEach(function (m) { add('iban', m.replace(/\s+/g, '')); });
+      (text.match(/\bhttps?:\/\/[^\s"'<>]+/gi) || []).forEach(function (m) { add('url', m); });
+      (text.match(/\b(?:[a-z0-9\-]+\.)+[a-z]{2,}\b/gi) || []).forEach(function (m) {
+        if (!/\d+\.\d+\.\d+\.\d+/.test(m)) add('domain', m.toLowerCase());
+      });
+      return b;
+    }
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = IR;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -100,5 +100,14 @@
     }
   };
 
+  // Zeitachse als CSV (fuer Timeline-Tools / Doku)
+  IR.report.timelineCSV = function (c) {
+    var rows = [['timestamp', 'kind', 'text', 'by']];
+    c.timeline.forEach(function (t) { rows.push([t.ts, t.kind, t.text, t.by || '']); });
+    return rows.map(function (r) {
+      return r.map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = IR.report;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -104,6 +104,16 @@
         'Eine IT-Kompromittierung ({{summary}}) kann die Produktion/OT betreffen (Bruecke IT->OT). ' +
         'Bitte Anlagen ueberwachen, sicherheitsrelevante Funktionen pruefen, ungewoehnliche Befehle/Sollwerte melden. Kontakt: {{responder}}.'
     },
+    health_authority: {
+      audience: 'Gesundheitsamt (Trinkwasser)', channel: 'Telefon + schriftlich',
+      frist: 'unverzueglich bei Qualitaetsgefahr',
+      subject: 'Moegliche Beeintraechtigung der Trinkwasserqualitaet (Cybervorfall)',
+      body:
+        'Versorger: {{org}}\nSachverhalt: {{summary}} (Verdacht auf Manipulation der Aufbereitungssteuerung)\n' +
+        'Betroffener Bereich/Versorgungsgebiet: \nGemessene/erwartete Auswirkung (Dosierung/Parameter): \n' +
+        'Sofortmassnahmen: (Handbetrieb/Beprobung/ggf. Abkochgebot)\nKontakt: {{responder}}\n' +
+        'Stand: {{date}}. Abstimmung Trinkwasserverordnung / weitere Schritte erbeten.'
+    },
     supplier_forensics: {
       audience: 'Lieferant / Wartungsfirma', channel: 'schriftlich verbindlich',
       frist: 'sofort',

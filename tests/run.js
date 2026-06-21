@@ -11,11 +11,11 @@ var fails = 0, passes = 0;
 function ok(cond, msg) { if (cond) { passes++; } else { fails++; console.log('  FAIL:', msg); } }
 function group(name, fn) { console.log('# ' + name); fn(); }
 
-var EXPECTED = ['bec-iban', 'ot-umspannwerk', 'ot-stellwerk', 'ransomware', 'ad-bruteforce', 'supplychain-solar'];
+var EXPECTED = ['bec-iban', 'ot-umspannwerk', 'ot-stellwerk', 'ransomware', 'ad-bruteforce', 'supplychain-solar', 'phishing-wave', 'ot-wasserwerk', 'cloud-m365-takeover'];
 var PHASES = ['triage', 'comms', 'forensik', 'eindaemmung', 'bereinigung', 'wiederanlauf', 'ermittlung', 'abschluss'];
 
 group('Playbooks vorhanden & vollstaendig', function () {
-  ok(IR.playbooks.length === 6, 'genau 6 Playbooks (ist ' + IR.playbooks.length + ')');
+  ok(IR.playbooks.length === 9, 'genau 9 Playbooks (ist ' + IR.playbooks.length + ')');
   EXPECTED.forEach(function (id) {
     ok(IR.engine.playbook(id), 'Playbook ' + id + ' existiert');
   });
@@ -116,6 +116,35 @@ group('Persistenz (In-Memory-Fallback)', function () {
   ok(IR.store.get(c.id), 'Case gespeichert & ladbar');
   IR.store.remove(c.id);
   ok(!IR.store.get(c.id), 'Case entfernt');
+});
+
+group('Ingest / Import (Smartphone & Desktop)', function () {
+  var c = IR.Case.create({ playbookId: 'bec-iban' });
+  var bundle = {
+    source: 'phone-recon',
+    iocs: [{ type: 'ip', value: '203.0.113.9', note: 'C2' }, { type: 'ip', value: '203.0.113.9' }],
+    hosts: [{ ip: '10.0.0.5', name: 'kasse01', ports: '445,3389' }],
+    notes: ['ARP-Scan: 12 Hosts aktiv'],
+    timeline: [{ kind: 'recon', text: 'nmap -sn 10.0.0.0/24' }],
+    evidence: [{ name: 'capture.pcap', type: 'netzwerk', hash: 'deadbeef', location: 'USB' }]
+  };
+  var r = IR.ingest.merge(c, bundle);
+  ok(r.iocs === 1, 'IOC-Dedupe (1 statt 2)');
+  ok(c.iocs.length === 2, 'IOC + Host als IOC');
+  ok(r.evidence === 1 && c.evidence.length === 1, 'Beweis importiert');
+  ok(c.timeline.some(function (t) { return /nmap/.test(t.text); }), 'Timeline-Eintrag importiert');
+  // Freitext-Extraktion
+  var b2 = IR.ingest.fromText('Kontakt a@b.de IP 8.8.8.8 Hash ' + 'a'.repeat(64) + ' IBAN LT12 1000 0111 0100 1000 URL http://evil.example/x');
+  var types = b2.iocs.map(function (x) { return x.type; });
+  ['email', 'ip', 'hash', 'iban', 'url'].forEach(function (t) { ok(types.indexOf(t) >= 0, 'fromText erkennt ' + t); });
+});
+
+group('Timeline-CSV', function () {
+  var c = IR.Case.create({ playbookId: 'ad-bruteforce' });
+  IR.Case.log(c, 'action', 'Test "mit Anfuehrungszeichen"');
+  var csv = IR.report.timelineCSV(c);
+  ok(/"timestamp","kind","text","by"/.test(csv), 'CSV-Header');
+  ok(/""mit Anfuehrungszeichen""/.test(csv), 'CSV maskiert Anfuehrungszeichen');
 });
 
 console.log('\n' + passes + ' ok, ' + fails + ' fail');

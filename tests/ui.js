@@ -30,8 +30,8 @@ dom.window.addEventListener('load', function () {
 function run() {
   try {
     var w = dom.window, d = w.document, IR = w.IR;
-    ok(IR && IR.playbooks.length === 6, 'IR geladen, 6 Playbooks');
-    ok(d.querySelectorAll('.pbcard').length === 6, 'Home zeigt 6 Szenario-Karten');
+    ok(IR && IR.playbooks.length === 9, 'IR geladen, 9 Playbooks');
+    ok(d.querySelectorAll('.pbcard').length === 9, 'Home zeigt 9 Szenario-Karten');
 
     // Fall 1 (BEC) anlegen
     var becCard = [].slice.call(d.querySelectorAll('.pbcard')).filter(function (b) { return b.dataset.id === 'bec-iban'; })[0];

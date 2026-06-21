@@ -171,6 +171,73 @@
 "else\n" +
 "  ( cd \"$DIR\" && sha256sum -c _SHA256SUMS.txt ) && echo '[+] Integritaet OK' || echo '[!] ABWEICHUNG!'\n" +
 "fi\n"
+    },
+    {
+      id: 'Memory-Acquisition', name: 'Speicher-Abbild (RAM)', os: 'Linux (avml) / Windows (winpmem)',
+      filename: 'memory-acquire.sh',
+      purpose: 'RAM forensisch sichern – zuerst, vor dem Abschalten. Linux per avml, Windows per winpmem (Hinweis).',
+      safety: 'Fluechtig: vor Abschalten/Trennen. Ausgabe auf USB-Stick, Hash bilden.',
+      script:
+"#!/usr/bin/env bash\n" +
+"# RAM-Abbild.  sudo ./memory-acquire.sh /pfad/usb\n" +
+"# Linux: benoetigt 'avml' (https://github.com/microsoft/avml) auf dem Stick.\n" +
+"# Windows: winpmem  ->  winpmem.exe -o E:\\\\evidence\\\\mem.raw   (separat ausfuehren)\n" +
+"set -u; OUT=\"${1:-.}\"; TS=$(date +%Y%m%d-%H%M%S); F=\"$OUT/mem-$(hostname)-$TS.lime\"\n" +
+"DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n" +
+"AVML=\"$DIR/avml\"; [ -x \"$AVML\" ] || AVML=\"$(command -v avml)\"\n" +
+"if [ -z \"$AVML\" ]; then echo '[!] avml nicht gefunden – auf den Stick legen.'; exit 1; fi\n" +
+"echo \"[*] RAM -> $F\"; \"$AVML\" \"$F\" && sha256sum \"$F\" | tee \"$F.sha256\"\n" +
+"echo \"[+] Fertig. Analyse mit Volatility3 (vol -f $F windows.pslist / linux.bash).\"\n"
+    },
+    {
+      id: 'Velociraptor-Offline', name: 'Velociraptor Offline-Collector', os: 'Windows/Linux/macOS',
+      filename: 'velociraptor-collect.sh',
+      purpose: 'Breite, standardisierte Triage mit Velociraptor (offline, ohne Server) – Artefakte als ZIP.',
+      safety: 'Read-only Collection. Velociraptor-Binary auf den Stick legen.',
+      script:
+"#!/usr/bin/env bash\n" +
+"# Velociraptor Offline-Collection.  ./velociraptor-collect.sh /pfad/usb\n" +
+"# Binary von https://github.com/Velocidex/velociraptor auf den Stick legen (velociraptor).\n" +
+"set -u; OUT=\"${1:-.}\"; DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n" +
+"VR=\"$DIR/velociraptor\"; [ -x \"$VR\" ] || VR=\"$(command -v velociraptor)\"\n" +
+"[ -z \"$VR\" ] && { echo '[!] velociraptor-Binary fehlt (auf den Stick legen).'; exit 1; }\n" +
+"# Windows-Beispielartefakte; fuer Linux: Linux.Search.FileFinder / Linux.Sys.* \n" +
+"\"$VR\" artifacts collect Windows.KapeFiles.Targets \\\n" +
+"  --args Device=C: --args _SANS_Triage=Y \\\n" +
+"  --output \"$OUT/velociraptor-$(hostname)-$(date +%Y%m%d-%H%M%S).zip\" 2>>\"$OUT/vr.log\"\n" +
+"echo \"[+] Fertig. ZIP im Ausgabeordner. (Linux: passende Linux.* Artefakte nutzen.)\"\n"
+    },
+    {
+      id: 'UAC', name: 'UAC – Unix-like Artifacts Collector', os: 'Linux/macOS/Unix',
+      filename: 'uac-collect.sh',
+      purpose: 'Standardisierte Live-Triage fuer Linux/Unix/macOS (Logs, Persistenz, Prozesse) als Archiv.',
+      safety: 'Read-only. UAC (uac-*/uac) auf den Stick legen.',
+      script:
+"#!/usr/bin/env bash\n" +
+"# UAC (https://github.com/tclahr/uac).  sudo ./uac-collect.sh /pfad/usb\n" +
+"set -u; OUT=\"${1:-.}\"; DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n" +
+"UAC=\"$DIR/uac\"; [ -x \"$UAC\" ] || UAC=\"$(command -v uac)\"\n" +
+"[ -z \"$UAC\" ] && { echo '[!] uac fehlt (Release auf den Stick entpacken).'; exit 1; }\n" +
+"sudo \"$UAC\" -p ir_triage \"$OUT\" 2>>\"$OUT/uac.log\"\n" +
+"echo \"[+] Fertig. UAC-Archiv (+ Hash) im Ausgabeordner.\"\n"
+    },
+    {
+      id: 'Timeline', name: 'Super-Timeline (plaso)', os: 'Linux (plaso) / Sleuthkit',
+      filename: 'make-timeline.sh',
+      purpose: 'Forensische Super-Timeline aus einem Mount/Image (plaso log2timeline -> psort CSV) bzw. Dateisystem-Timeline (Sleuthkit).',
+      safety: 'Read-only auf Image/Mount (ro). Rechenintensiv.',
+      script:
+"#!/usr/bin/env bash\n" +
+"# Super-Timeline.  ./make-timeline.sh /pfad/zu/image_oder_mount /pfad/usb\n" +
+"set -u; SRC=\"${1:?Image/Mount}\"; OUT=\"${2:-.}\"; TS=$(date +%Y%m%d-%H%M%S)\n" +
+"if command -v log2timeline.py >/dev/null; then\n" +
+"  log2timeline.py --status_view none \"$OUT/plaso-$TS.dump\" \"$SRC\" &&\n" +
+"  psort.py -o l2tcsv -w \"$OUT/timeline-$TS.csv\" \"$OUT/plaso-$TS.dump\"\n" +
+"elif command -v fls >/dev/null; then\n" +
+"  fls -r -m / \"$SRC\" > \"$OUT/bodyfile-$TS.txt\" && mactime -b \"$OUT/bodyfile-$TS.txt\" -d > \"$OUT/timeline-$TS.csv\"\n" +
+"else echo '[!] Weder plaso noch sleuthkit gefunden.'; exit 1; fi\n" +
+"sha256sum \"$OUT\"/timeline-$TS.csv > \"$OUT/timeline-$TS.csv.sha256\" 2>/dev/null\n" +
+"echo \"[+] Timeline: $OUT/timeline-$TS.csv\"\n"
     }
   ];
 

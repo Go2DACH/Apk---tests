@@ -196,11 +196,15 @@
 
   function viewReport() {
     var md = IR.report.markdown(c);
-    return '<section class="card"><h2>Bericht</h2>' +
+    return '<section class="card"><h2>Bericht & Daten</h2>' +
       '<div class="row"><button class="mini" data-act="rep-copy">Markdown kopieren</button>' +
       '<button class="mini" data-act="rep-dl">.md herunterladen</button>' +
       '<button class="mini" data-act="case-dl">Fall (JSON) exportieren</button>' +
-      '<button class="mini" data-act="sitrep">Lagebericht</button></div></section>' +
+      '<button class="mini" data-act="tl-csv">Timeline CSV</button>' +
+      '<button class="mini" data-act="sitrep">Lagebericht</button></div>' +
+      '<div class="row"><button class="mini" data-act="import-json">Daten importieren (JSON)</button>' +
+      '<button class="mini" data-act="import-paste">Quick-Paste IOCs</button></div>' +
+      '<small class="muted">Ingest-Bundles vom Smartphone/Desktop (mobile/desktop-Skripte) hier einlesen.</small></section>' +
       '<section class="card report">' + U.md(md) + '</section>';
   }
 
@@ -232,7 +236,31 @@
     else if (act === 'rep-dl') { download('incident-report-' + c.id + '.md', IR.report.markdown(c), 'text/markdown'); }
     else if (act === 'case-dl') { download('case-' + c.id + '.json', JSON.stringify(c, null, 2), 'application/json'); }
     else if (act === 'sitrep') { copy(IR.report.sitrep(c)); toast('Lagebericht kopiert'); }
+    else if (act === 'tl-csv') { download('timeline-' + c.id + '.csv', IR.report.timelineCSV(c), 'text/csv'); }
+    else if (act === 'import-json') { importFromFile(); }
+    else if (act === 'import-paste') {
+      var txt = prompt('IOCs/Text einfuegen (IPs, Hashes, E-Mails, IBANs, Domains, URLs werden erkannt):');
+      if (txt) { var r = IR.ingest.merge(c, IR.ingest.fromText(txt)); save(); toast(r.iocs + ' IOCs importiert'); render(); }
+    }
   });
+
+  function importFromFile() {
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.addEventListener('change', function () {
+      var f = inp.files[0]; if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function () {
+        try {
+          var b = JSON.parse(rd.result);
+          var r = IR.ingest.merge(c, b); save();
+          toast('Import: ' + r.iocs + ' IOCs, ' + r.evidence + ' Beweise');
+          render();
+        } catch (e) { toast('Import fehlgeschlagen (kein gueltiges JSON)'); }
+      };
+      rd.readAsText(f);
+    });
+    inp.click();
+  }
 
   document.addEventListener('input', function (e) {
     var t = e.target; if (!c) return;
@@ -257,6 +285,33 @@
     b.addEventListener('click', function () { go(b.dataset.view); });
   });
   $('#home').addEventListener('click', function () { state.caseId = null; c = null; go('home'); });
+
+  // Demo-Modus fuer Screenshots/Walkthrough:  index.html#demo-<playbookId>[/<view>]
+  function seedDemo(id) {
+    var pb = IR.engine.playbook(id); if (!pb) return;
+    var nc = IR.Case.create({ playbookId: id, title: pb.title, sector: pb.category, org: 'Beispiel GmbH', responder: 'IR-Team', classification: 'TLP:AMBER' });
+    IR.Case.answer(nc, 'summary', pb.oneLiner);
+    var n = 0;
+    pb.phases.forEach(function (ph) {
+      IR.engine.visibleSteps(ph, nc).forEach(function (s) {
+        if (s.type === 'choice') IR.Case.setFlag(nc, s.options[0].setFlag.k, s.options[0].setFlag.v);
+        else if ((s.type === 'check' || s.type === 'evidence' || s.type === 'comms') && n++ % 2 === 0) {
+          nc.checks[s.id] = true;
+          if (s.type === 'evidence') IR.Case.addEvidence(nc, { name: s.evidence.name, type: s.evidence.type, volatility: s.evidence.volatility, method: s.evidence.method, hash: 'e3b0c44298fc1c149afbf4c8996fb924', location: 'USB:/evidence', collectedBy: 'IR-Team' });
+          if (s.type === 'comms') IR.Case.addComm(nc, { audience: IR.comms[s.commsId].audience, status: 'gemeldet' });
+        }
+      });
+    });
+    IR.Case.addIoc(nc, 'iban', 'LT121000011101001000', 'Empfaengerkonto (Betrug)');
+    IR.Case.addIoc(nc, 'ip', '203.0.113.66', 'C2');
+    IR.store.save(nc); return nc.id;
+  }
+  var m = (location.hash || '').match(/^#demo-([a-z0-9\-]+)(?:\/(\w+))?/i);
+  if (m) {
+    var existing = IR.store.list().filter(function (x) { return x.playbookId === m[1] && /Beispiel GmbH/.test(x.org || ''); })[0];
+    var did = existing ? existing.id : seedDemo(m[1]);
+    if (did) { c = IR.store.get(did); state.caseId = did; state.view = m[2] || 'pb'; }
+  }
 
   render();
 })();

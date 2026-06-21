@@ -382,7 +382,165 @@
     ]
   };
 
-  IR.playbooks = [bec, sub, rail, ransom, ad, solar];
+  // ====================================================================== //
+  //  FALL 7 – Phishing-Welle / Credential-Diebstahl
+  // ====================================================================== //
+  var phish = {
+    id: 'phishing-wave',
+    title: 'Phishing-Welle – Zugangsdaten abgegriffen',
+    category: 'IT · Phishing / Identitaet',
+    severity: 'hoch',
+    oneLiner: 'Mehrere Mitarbeiter haben auf eine Phishing-Mail geklickt/Zugangsdaten eingegeben; Folgeanmeldungen aus dem Ausland.',
+    derivation:
+      '**Symptom:** Phishing-Mail an viele Empfaenger, Klicks/Credential-Eingaben, evtl. MFA-Fatigue.\n' +
+      '**Hypothesen:** Credential-Diebstahl -> Kontomissbrauch (BEC/Datenabfluss), Token-/Session-Diebstahl trotz MFA (AiTM), Verteilung weiterer Mails intern.\n' +
+      '**Beweis-Ableitung:** Mail (Header/URL/Payload), Klick-/Eingabe-Telemetrie (Proxy/Mailgateway), Sign-in-Logs (Land/IP/Geraet), MFA-Events, Postfachregeln, betroffene Empfaengerliste.',
+    phases: [
+      { id: 'triage', title: 'Identifikation & Sofortmassnahmen', steps: [
+        s('ph-t-scope', 'input', 'Welle eingrenzen', 'Betreff/Absender/URL der Phishing-Mail, Empfaengerzahl, wer hat geklickt/Daten eingegeben?', { field: { name: 'scope', label: 'Mail / Empfaenger / Klicks', kind: 'textarea' } }),
+        s('ph-t-pull', 'check', 'Mail aus Postfaechern entfernen', 'Nach Sicherung eines Originals die Phishing-Mail organisationsweit zurueckholen/quarantaenen (z.B. Search-and-Purge).'),
+        s('ph-t-reset', 'check', 'Betroffene Konten zuruecksetzen', 'Passwoerter + **Sessions/Token invalidieren** der Nutzer, die Daten eingegeben haben; MFA pruefen/neu registrieren.'),
+        s('ph-t-aitm', 'choice', 'Anzeichen fuer Token-/Session-Diebstahl (AiTM)?', 'Erfolgreiche Anmeldungen trotz MFA, neue MFA-Methoden, fremde Geraete?', { options: [
+          { label: 'Ja – Session-Diebstahl', setFlag: { k: 'aitm', v: true } },
+          { label: 'Nein / unklar', setFlag: { k: 'aitm', v: false } }
+        ] })
+      ] },
+      { id: 'comms', title: 'Krisenkommunikation & Meldepflichten', steps: [
+        commManagement('ph'),
+        s('ph-c-warn', 'comms', 'Mitarbeiter warnen', 'Belegschaft ueber die Welle informieren: nicht klicken, melden; betroffene Nutzer gezielt ansprechen.', { commsId: 'holding_statement' }),
+        commLegalDSGVO('ph'),
+        commPolice('ph')
+      ] },
+      { id: 'forensik', title: 'Beweissicherung', steps: [
+        ev('ph-f-mail', 'Phishing-Mail + URL/Payload sichern', 'Original .eml mit Headern, Ziel-URL (entschaerft), evtl. Landingpage. (Tool: **Mail-Header**).', { name: 'Phishing-Mail + IOCs', type: 'datei', volatility: 'mittel', method: 'Export' }),
+        ev('ph-f-signin', 'Sign-in-/MFA-Logs sichern', 'Anmelde-Logs (IP/Land/Geraet), MFA-Events, neue Auth-Methoden, OAuth-Grants. (Tool: **M365-Triage**).', { name: 'Sign-in/MFA-Logs', type: 'log', volatility: 'mittel', method: 'Audit-Export' }),
+        ev('ph-f-rules', 'Postfachregeln pruefen/sichern', 'Bei kompromittierten Konten Inbox-Rules/Weiterleitungen exportieren (Folge-BEC erkennen).', { name: 'Postfachregeln', type: 'log', volatility: 'mittel', method: 'Export' })
+      ] },
+      { id: 'eindaemmung', title: 'Eindaemmung', steps: [
+        s('ph-e-block', 'check', 'IOCs blockieren', 'Absender/Domain/URL/IP sperren (Mailgateway, Proxy, DNS).'),
+        s('ph-e-revoke', 'check', 'Sessions/Token global widerrufen', 'Bei AiTM Tokens/Refresh-Token widerrufen, Geraete entfernen, Conditional Access verschaerfen.', { showIf: { flag: 'aitm' } }),
+        s('ph-e-hunt', 'check', 'Intern verteilte Mails jagen', 'Pruefen, ob kompromittierte Konten weitere Phishing-Mails intern/extern versandt haben.')
+      ] },
+      { id: 'bereinigung', title: 'Bereinigung', steps: [
+        s('ph-b-rules', 'check', 'Boesartige Regeln/Grants entfernen', 'Nach Export verdaechtige Regeln, OAuth-App-Grants, MFA-Methoden bereinigen.'),
+        s('ph-b-harden', 'check', 'Auth haerten', 'Phishing-resistente MFA (FIDO2), Conditional Access, Mailauthentifizierung (DMARC) staerken.')
+      ] },
+      { id: 'wiederanlauf', title: 'Sicherer Wiederanlauf', steps: recoveryCommon('ph') },
+      { id: 'ermittlung', title: 'Ermittlung / Analyse', steps: [
+        s('ph-i-impact', 'check', 'Auswirkung je Konto', 'Pro kompromittiertem Konto: Datenzugriff/Abfluss, BEC, laterale Nutzung. DSGVO-Relevanz bewerten.'),
+        s('ph-i-camp', 'check', 'Kampagne attribuieren', 'Infrastruktur/Muster, ggf. Branchen-Welle; Warnung an Partner/CERT.')
+      ] },
+      { id: 'abschluss', title: 'Abschluss', steps: closeout('ph') }
+    ]
+  };
+
+  // ====================================================================== //
+  //  FALL 8 – Wasserwerk / Trinkwasser-OT-Manipulation
+  // ====================================================================== //
+  var water = {
+    id: 'ot-wasserwerk',
+    title: 'Wasserwerk – Manipulation der Trinkwasser-Steuerung (OT/KRITIS)',
+    category: 'OT/ICS · Wasser (KRITIS, Gesundheit)',
+    severity: 'kritisch',
+    oneLiner: 'Auffaellige Sollwerte/Schaltzustaende in der Wasseraufbereitung (z.B. Dosierung/Chlorung) – Verdacht auf Manipulation.',
+    derivation:
+      '**Symptom:** Ungewoehnliche Steuer-/Sollwerte (Dosierpumpen, Chlorung, Pegel), evtl. Fernzugriff auf SCADA/PLC.\n' +
+      '**Hypothesen:** Manipulierte Sollwerte/SPS-Logik (Gesundheitsgefahr durch Ueber-/Unterdosierung), kompromittierte HMI/Fernwartung, Internet-exponierte PLC.\n' +
+      '**Konflikt:** **Gesundheit/Versorgung vor Forensik.** Erst Wasserqualitaet sichern (manuelle Kontrolle, ggf. Einspeisung stoppen/Reservoir), dann fluechtige Beweise.',
+    phases: [
+      { id: 'triage', title: 'Sicherheit & Sofortmassnahmen', steps: [
+        s('wat-t-safety', 'check', 'Wasserqualitaet zuerst sichern', 'Mit Betriebsleitung/Wassermeister: Dosierung **manuell** verifizieren, ggf. auf Handbetrieb/sichere Voreinstellung, betroffene Einspeisung stoppen, Beprobung veranlassen.'),
+        s('wat-t-health', 'choice', 'Akute Gesundheitsgefahr (Dosierung)?', 'Hinweis auf gefaehrliche Dosierwerte?', { options: [
+          { label: 'Ja – Gesundheitsamt + Abkochgebot pruefen', setFlag: { k: 'health_risk', v: true } },
+          { label: 'Nein / kontrolliert', setFlag: { k: 'health_risk', v: false } }
+        ] }),
+        s('wat-t-observe', 'check', 'Steuerung beobachten, nicht voreilig kappen', 'Auffaellige Sollwerte/Verbindungen dokumentieren (Foto/HMI-Screens). Fluechtige Beweise vor Trennung sichern.')
+      ] },
+      { id: 'comms', title: 'Krisenkommunikation & Meldepflichten', steps: [
+        commManagement('wat'),
+        s('wat-c-health', 'comms', 'Gesundheitsamt informieren', 'Bei moeglicher Beeintraechtigung der Trinkwasserqualitaet **Gesundheitsamt** einbinden (Trinkwasserverordnung), ggf. Abkochgebot.', { commsId: 'health_authority' }),
+        s('wat-c-kritis', 'comms', 'BSI/KRITIS (Wasser) + Behoerden', 'KRITIS Sektor Wasser: BSI-Meldung, zustaendige Aufsichtsbehoerde; CERT einbinden.', { commsId: 'kritis_bsi' }),
+        commPolice('wat')
+      ] },
+      { id: 'forensik', title: 'Beweissicherung (OT)', steps: [
+        ev('wat-f-hmi', 'HMI/Engineering-PC sichern', 'HMI/SCADA-/Engineering-Rechner: RAM + Disk/Triage, Projekt-/Logik-Aenderungen, USB-Historie. (Tool: **Windows-Triage**).', { name: 'HMI/Engineering Triage', type: 'image', volatility: 'hoch', method: 'RAM+Triage' }),
+        ev('wat-f-plc', 'PLC-/Sollwert-Aenderungen sichern', 'SPS-Programm/Parametersaetze gegen Referenz vergleichen, Aenderungs-/Event-Logs sichern.', { name: 'PLC-Programm/Parameter', type: 'log', volatility: 'mittel', method: 'Engineering-Export' }),
+        ev('wat-f-net', 'OT-Netzwerk-Capture', 'Passiv am SCADA-Netz mitschneiden (Modbus/S7/104) – fremde Master/Kommandos. (Tool: **OT-Netzwerk-Capture**).', { name: 'OT-Capture (pcap)', type: 'netzwerk', volatility: 'hoch', method: 'TAP/SPAN' })
+      ] },
+      { id: 'eindaemmung', title: 'Eindaemmung', steps: [
+        s('wat-e-isolate', 'check', 'Fernzugriff/Exposition schliessen', 'Internet-exponierte PLC/HMI/Fernwartung kontrolliert isolieren; nur noetige Verbindungen.'),
+        s('wat-e-restore', 'check', 'Sollwerte/Logik auf Soll', 'Manipulierte Sollwerte/Logik gegen signierte Referenz pruefen und nach Freigabe zuruecksetzen.', { showIf: { flag: 'health_risk' } })
+      ] },
+      { id: 'bereinigung', title: 'Bereinigung', steps: [
+        s('wat-b-rebuild', 'check', 'Kompromittierte Rechner neu aufsetzen', 'HMI/Engineering-PC neu aufsetzen; Projekt/Firmware nur aus verifizierter Quelle.'),
+        s('wat-b-fw', 'check', 'PLC-Integritaet pruefen', 'SPS-/Firmware-Integritaet gegen Hersteller pruefen.')
+      ] },
+      { id: 'wiederanlauf', title: 'Sicherer Wiederanlauf', steps: recoveryCommon('wat').concat([
+        s('wat-w-quality', 'check', 'Freigabe nach Wasserqualitaet', 'Rueckkehr in Automatik erst nach bestaetigter Wasserqualitaet (Beprobung) und verifizierter Steuerung.')
+      ]) },
+      { id: 'ermittlung', title: 'Ermittlung / Analyse', steps: [
+        s('wat-i-corr', 'check', 'Zugang & Wirkung rekonstruieren', 'Wie kam der Angreifer rein (Fernwartung/Internet), welche Sollwerte wann geaendert, Wirkung auf Qualitaet.'),
+        s('wat-i-expo', 'check', 'Exposition pruefen', 'Shodan-aehnliche Exposition/Standardpasswoerter der Anlagen pruefen und schliessen.')
+      ] },
+      { id: 'abschluss', title: 'Abschluss', steps: closeout('wat') }
+    ]
+  };
+
+  // ====================================================================== //
+  //  FALL 9 – Cloud/M365 Tenant-Takeover (Global Admin)
+  // ====================================================================== //
+  var cloud = {
+    id: 'cloud-m365-takeover',
+    title: 'Cloud/M365 – Tenant-Uebernahme (Global Admin)',
+    category: 'Cloud · Identitaet (M365/Entra)',
+    severity: 'kritisch',
+    oneLiner: 'Verdacht auf Uebernahme des M365/Entra-Tenants: neue Global Admins, OAuth-Consent, fremde Mailregeln/Exfiltration.',
+    derivation:
+      '**Symptom:** Privilegierte Aenderungen in der Cloud (neue Admins, App-Registrierungen, Federation), Datenabfluss aus SharePoint/Mail.\n' +
+      '**Hypothesen:** Kompromittierter Admin (Phishing/AiTM), boesartige **OAuth-App** mit weitreichenden Rechten, Federation/Domain-Manipulation, Persistenz ueber Service Principals.\n' +
+      '**Beguenstigt:** Token-Diebstahl, fehlendes Conditional Access/MFA.\n' +
+      '**Beweis-Ableitung:** Entra-Audit + Sign-in-Logs, Unified Audit Log, OAuth-Grants/Service Principals, Rollenzuweisungen, Mailregeln/Exfil, neue Domains/Federation.',
+    phases: [
+      { id: 'triage', title: 'Identifikation & Sofortmassnahmen', steps: [
+        s('cl-t-scope', 'input', 'Verdacht konkretisieren', 'Welche Aenderungen (neue Admins/Apps/Regeln), seit wann, welche Konten?', { field: { name: 'scope', label: 'Auffaellige Aenderungen / Zeit', kind: 'textarea' } }),
+        s('cl-t-secure', 'check', 'Break-Glass-Konto sichern & nutzen', 'Notfall-(Break-Glass-)Global-Admin absichern (langes PW, FIDO2). Ueber dieses sauber arbeiten, nicht ueber verdaechtige Konten.'),
+        s('cl-t-revoke', 'check', 'Sessions/Token der Admins widerrufen', 'Alle Sessions/Refresh-Token privilegierter Konten widerrufen; verdaechtige Admins sperren/PW-Reset + MFA neu.'),
+        s('cl-t-oauth', 'choice', 'Boesartige OAuth-App / Service Principal?', 'Neue App-Registrierungen/Enterprise-Apps mit weitreichenden Graph-Rechten?', { options: [
+          { label: 'Ja – App-Consent-Angriff', setFlag: { k: 'oauth_abuse', v: true } },
+          { label: 'Nein / unklar', setFlag: { k: 'oauth_abuse', v: false } }
+        ] })
+      ] },
+      { id: 'comms', title: 'Krisenkommunikation & Meldepflichten', steps: [
+        commManagement('cl'),
+        commLegalDSGVO('cl'),
+        commPolice('cl'),
+        s('cl-c-msp', 'comms', 'Microsoft/MSP & Stakeholder', 'Microsoft-Support/Provider einbinden; betroffene Bereiche informieren (kontrolliert).', { commsId: 'holding_statement' })
+      ] },
+      { id: 'forensik', title: 'Beweissicherung', steps: [
+        ev('cl-f-audit', 'Entra-/Unified-Audit-Log sichern', 'Audit + Sign-in-Logs exportieren (Rollenaenderungen, App-Consent, Regeln). (Tool: **M365-Triage**).', { name: 'M365/Entra Audit-Logs', type: 'log', volatility: 'mittel', method: 'Audit-Export' }),
+        ev('cl-f-oauth', 'OAuth-Grants & Service Principals', 'Enterprise-Apps/App-Registrierungen, delegierte/Application-Permissions, Geheimnisse/Zertifikate, Erstell-Datum.', { name: 'OAuth-Grants/Service Principals', type: 'log', volatility: 'mittel', method: 'Graph-Export' }),
+        ev('cl-f-roles', 'Rollen- & Federation-Aenderungen', 'Privilegierte Rollenzuweisungen, neue Domains/Federation (Token-Faelschung), Partner-/Delegated-Admin.', { name: 'Rollen/Federation-Aenderungen', type: 'log', volatility: 'mittel', method: 'Export' }),
+        ev('cl-f-exfil', 'Mailregeln & Exfil pruefen', 'Postfachregeln/Weiterleitungen, SharePoint/OneDrive-Massendownloads, eDiscovery-Missbrauch.', { name: 'Exfil-/Regel-Indikatoren', type: 'log', volatility: 'mittel', method: 'Audit-Analyse' })
+      ] },
+      { id: 'eindaemmung', title: 'Eindaemmung', steps: [
+        s('cl-e-app', 'check', 'Boesartige App/SP entfernen', 'Nach Export verdaechtige Enterprise-Apps/Service Principals deaktivieren, Grants/Geheimnisse widerrufen.', { showIf: { flag: 'oauth_abuse' } }),
+        s('cl-e-admins', 'check', 'Privilegierte Konten bereinigen', 'Fremde Global Admins entfernen, alle Admin-Credentials rotieren, Federation/Domains pruefen.'),
+        s('cl-e-ca', 'check', 'Conditional Access verschaerfen', 'MFA erzwingen, Legacy-Auth blocken, Laender/Geraete-Policies, Admin-Login einschraenken.')
+      ] },
+      { id: 'bereinigung', title: 'Bereinigung', steps: [
+        s('cl-b-persist', 'check', 'Cloud-Persistenz jagen', 'Service Principals mit Secrets, App-Rollen, Inbox-Rules, eDiscovery, neue Federation/Domains entfernen.'),
+        s('cl-b-mfa', 'check', 'Phishing-resistente MFA', 'FIDO2/Passkeys fuer Admins, Break-Glass dokumentiert, Token-Schutz.')
+      ] },
+      { id: 'wiederanlauf', title: 'Sicherer Wiederanlauf', steps: recoveryCommon('cl') },
+      { id: 'ermittlung', title: 'Ermittlung / Analyse', steps: [
+        s('cl-i-impact', 'check', 'Datenabfluss bewerten', 'Welche Postfaecher/Sites/Daten abgeflossen? DSGVO-Meldung konkretisieren.'),
+        s('cl-i-root', 'check', 'Erstzugang & Persistenz', 'Wie kam der Angreifer an Admin (Phishing/AiTM)? Alle Persistenzpfade ausgeschlossen?')
+      ] },
+      { id: 'abschluss', title: 'Abschluss', steps: closeout('cl') }
+    ]
+  };
+
+  IR.playbooks = [bec, sub, rail, ransom, ad, solar, phish, water, cloud];
 
   if (typeof module !== 'undefined' && module.exports) module.exports = IR.playbooks;
 })(typeof window !== 'undefined' ? window : globalThis);
