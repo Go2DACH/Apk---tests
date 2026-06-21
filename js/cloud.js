@@ -17,7 +17,10 @@
   'use strict';
   var IR = root.IR || (root.IR = {});
   var KEY = 'ir-cloud-v1', mem = null;
-  var DEF = { owner: '', repo: '', branch: 'main', token: '', dir: 'cloud/incidents' };
+  // Pfad ist vorbelegt (dieses Repo), bleibt aber in der App aenderbar.
+  // Geschrieben/gelesen wird der Arbeits-Branch (dort liegt cloud/); ein Push
+  // dorthin triggert den Pages-Deploy automatisch.
+  var DEF = { owner: 'go2dach', repo: 'Apk---tests', branch: 'claude/fresh-start-v9zow4', token: '', dir: 'cloud/incidents' };
 
   function store() { try { return root.localStorage; } catch (e) { return null; } }
   function loadCfg() {

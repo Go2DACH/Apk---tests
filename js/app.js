@@ -202,11 +202,57 @@
     }).catch(function (e) { d.out = 'Fehler: ' + (e && e.message || e); render(); });
   }
 
+  // Forensik-Befunde (ingest.json) vom Host automatisch ins Playbook uebernehmen
+  function hostMergeFindings(ids) {
+    if (!c) { toast('Erst einen Fall oeffnen'); return; }
+    var tot = { iocs: 0, evidence: 0, hosts: 0, notes: 0, timeline: 0 }, pending = 0, scanned = 0;
+    var hosts = ids.map(function (id) { return IR.hosts.get(id); }).filter(Boolean);
+    if (!hosts.length) return;
+    toast('Lade Befunde …');
+    hosts.forEach(function (host) {
+      pending++;
+      IR.hosts.files(host).then(function (fl) {
+        var files = ((fl && fl.files) || []).filter(function (f) { return /ingest.*\.json$/i.test(f.path) || /\.ingest\.json$/i.test(f.path); });
+        var chain = Promise.resolve();
+        files.forEach(function (f) {
+          chain = chain.then(function () {
+            return IR.hosts.fetchFileText(host, f.path).then(function (txt) {
+              try { var b = JSON.parse(txt); var r = IR.ingest.merge(c, b); scanned++; Object.keys(tot).forEach(function (k) { tot[k] += r[k] || 0; }); } catch (e) {}
+            });
+          });
+        });
+        return chain;
+      }).catch(function () {}).then(function () {
+        if (--pending === 0) {
+          save();
+          toast(scanned ? ('Befunde uebernommen: ' + tot.iocs + ' IOCs, ' + tot.evidence + ' Beweise, ' + tot.hosts + ' Hosts') : 'Keine ingest.json auf den Hosts gefunden');
+          render();
+        }
+      });
+    });
+  }
+  function hostDiscover() {
+    toast('Suche Hosts (USB/Netz) …');
+    IR.hosts.discover().then(function (found) {
+      var added = 0;
+      found.forEach(function (r) {
+        var before = IR.hosts.list().length; IR.hosts.adopt(r.base, r.info);
+        var hh = IR.hosts.list().filter(function (x) { return x.base === r.base; })[0];
+        if (hh) hostData(hh.id).info = r.info;
+        if (IR.hosts.list().length > before) added++;
+      });
+      toast(found.length ? (found.length + ' Host(s) gefunden, ' + added + ' neu – Token nachtragen') : 'Keine Hosts gefunden (USB/WLAN verbunden?)');
+      render();
+    }).catch(function () { toast('Discovery fehlgeschlagen'); });
+  }
+
   function viewHosts() {
     var list = IR.hosts.list();
     var h = '<section class="card"><div class="row"><h2>🖧 Forensik-Hosts</h2>' +
       '<button class="mini" data-act="goto-home">‹ Start</button></div>' +
-      '<p class="muted">Bis zu ' + IR.hosts.MAX + ' gesicherte Forensik-Sticks fernsteuern. Jeder Host = ein Boot-Stick mit <code>control-server.py</code>. Adresse + Token werden beim Start auf der Stick-Konsole angezeigt. Alle gesammelten Dateien laufen hier zusammen.</p>';
+      '<p class="muted">Bis zu ' + IR.hosts.MAX + ' gesicherte Forensik-Sticks fernsteuern. Jeder Host = ein Boot-Stick mit <code>control-server.py</code>. Adresse + Token werden beim Start auf der Stick-Konsole angezeigt. Alle gesammelten Dateien laufen hier zusammen.</p>' +
+      '<div class="row"><button class="mini" data-act="host-discover">🔌 USB/Netz: Hosts automatisch suchen</button>' +
+      (c ? '<button class="mini" data-act="host-merge-all">⤵ Alle Befunde in Fall „' + U.esc(c.title) + '"</button>' : '<small class="muted">Fall oeffnen, um Befunde direkt ins Playbook zu uebernehmen.</small>') + '</div>';
     if (list.length < IR.hosts.MAX) {
       h += '<div class="hostadd"><div class="row"><input id="hLabel" placeholder="Name (z.B. Kasse-PC)"></div>' +
         '<div class="row"><input id="hBase" placeholder="IP:Port (z.B. 10.13.37.1:8080)"></div>' +
@@ -222,6 +268,7 @@
         '<small class="muted"><code>' + U.esc(host.base) + '</code>' + (online ? ' · ' + info.evidenceCount + ' Dateien · ' + fmtBytes(info.evidenceBytes) : '') + '</small>';
       if (d.err) h += '<small class="warn">' + U.esc(d.err) + ' – Adresse/Token pruefen, Handy &amp; Stick im selben Netz?</small>';
       h += '<div class="row"><button class="mini" data-act="host-refresh" data-id="' + host.id + '">Verbinden/Aktualisieren</button>' +
+        (c ? '<button class="mini" data-act="host-merge" data-id="' + host.id + '">⤵ Befunde in Fall</button>' : '') +
         '<button class="icon" data-act="host-del" data-id="' + host.id + '" title="entfernen">✕</button></div>';
       // One-Click-Forensik
       h += '<div class="row"><input data-hdev="' + host.id + '" placeholder="/dev/sdb (fuer Image)" style="flex:1"></div>' +
@@ -387,9 +434,33 @@
       var done = steps.filter(function (s) { return c.checks[s.id]; }).length;
       h += '<section class="card phase"><h2 class="phasehead">' + U.esc(ph.title) +
         ' <span class="badge">' + done + '/' + steps.length + '</span></h2>';
+      if (ph.id === 'forensik') h += findingsCard();
       steps.forEach(function (s) { h += renderStep(s); });
       h += '</section>';
     });
+    return h;
+  }
+
+  // Importierte Befunde (aus Host-/Datei-Ingest) direkt im Forensik-Schritt zeigen,
+  // damit die Entscheidung am Datenbestand getroffen wird.
+  function findingsCard() {
+    var iocs = c.iocs || [], ev = c.evidence || [];
+    var ingest = (c.timeline || []).filter(function (t) { return t.kind === 'ingest'; });
+    if (!iocs.length && !ev.length && !ingest.length) {
+      return '<div class="findings"><small class="muted">📥 Noch keine importierten Befunde. Daten einspeisen: Tab <b>Geräte/Hosts</b> → „⤵ Befunde in Fall", oder Tab <b>Bericht</b> → „Daten importieren".</small></div>';
+    }
+    var h = '<div class="findings"><div class="row"><strong>📥 Befunde aus Daten</strong>' +
+      '<span class="badge">' + iocs.length + ' IOCs · ' + ev.length + ' Beweise</span></div>';
+    if (iocs.length) {
+      h += '<div class="findlist">';
+      iocs.slice(0, 12).forEach(function (x) {
+        h += '<div class="frow">· <code>' + U.esc(x.type) + '</code> ' + U.esc(x.value) + (x.note ? ' <small>' + U.esc(x.note) + '</small>' : '') + '</div>';
+      });
+      if (iocs.length > 12) h += '<small class="muted">… +' + (iocs.length - 12) + ' weitere (Tab IOCs)</small>';
+      h += '</div>';
+    }
+    if (ev.length) h += '<small>Beweise: ' + U.esc(ev.map(function (e) { return e.name; }).slice(0, 8).join(', ')) + '</small>';
+    h += '<small class="muted">Diese Befunde unten gegen „Worauf achten (Entscheidung)" prüfen und Confirm/Refute setzen. Das Tool entscheidet bewusst nicht automatisch.</small></div>';
     return h;
   }
 
@@ -536,6 +607,9 @@
     }
     if (act === 'host-del') { if (confirm('Host entfernen?')) { IR.hosts.remove(id); render(); } return; }
     if (act === 'host-refresh') { hostRefresh(id); return; }
+    if (act === 'host-discover') { hostDiscover(); return; }
+    if (act === 'host-merge') { hostMergeFindings([id]); return; }
+    if (act === 'host-merge-all') { hostMergeFindings(IR.hosts.list().map(function (x) { return x.id; })); return; }
     if (act === 'host-run') {
       var a = b.dataset.a, args = {};
       if (a === 'image_disk') {

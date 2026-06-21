@@ -61,6 +61,11 @@ function run() {
     d.querySelector('[data-act="ioc-add"]').click();
     ok(/LT12/.test(d.querySelector('#app').innerHTML), 'IOC erscheint in Liste');
 
+    // Befund erscheint automatisch im Playbook (Forensik-Phase)
+    [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'pb'; })[0].click();
+    ok(!!d.querySelector('.findings') && /Befunde aus Daten/.test(d.querySelector('#app').innerHTML), 'Befunde aus Daten im Playbook sichtbar');
+    ok(/LT12/.test(d.querySelector('.findings').innerHTML), 'importierter IOC steht im Forensik-Befund');
+
     // Comms protokollieren
     [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'comms'; })[0].click();
     var clog = d.querySelector('[data-act="comm-log"]');

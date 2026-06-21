@@ -91,6 +91,9 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
 .bigbtn{display:block;width:100%;background:var(--acc);color:#04243f;border:0;border-radius:10px;
   padding:13px;font-size:15px;font-weight:800;margin:6px 0}
 .bigbtn:disabled{opacity:.4}
+.findings{background:#0c2944;border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:10px;margin:0 0 10px}
+.findings .findlist{margin:4px 0}.findings .frow{font-size:13px;margin:2px 0}
+.findings code{background:#06182a;padding:1px 5px;border-radius:5px}
 .hostcard .row.wrap{gap:6px}
 .hostadd{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
 .hfiles{border-top:1px solid var(--line);padding-top:6px;margin-top:6px}

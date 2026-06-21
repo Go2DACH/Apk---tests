@@ -80,6 +80,39 @@
     downloadUrl: function (h, relPath) {
       return h.base + '/download?t=' + encodeURIComponent(h.token) + '&path=' + encodeURIComponent(relPath);
     },
+    // Datei vom Host laden und als Text/JSON zurueck (z.B. ingest.json -> Playbook)
+    fetchFileText: function (h, relPath) {
+      return fetchJson(this.downloadUrl(h, relPath), { timeout: 60000 }).then(function (x) {
+        return (typeof x === 'string') ? x : JSON.stringify(x);
+      });
+    },
+
+    // Auto-Discovery: bekannte USB-/Hotspot-Adressen nach Control-Servern absuchen.
+    // /api/info antwortet auch ohne Token (minimal) -> Host wird erkannt.
+    candidates: function () {
+      var set = {}, out = [];
+      // netup-Default (Stick = .1), USB-Tethering, lokal
+      ['http://10.13.37.1:8080', 'http://192.168.42.129:8080', 'http://192.168.42.1:8080',
+       'http://172.20.10.1:8080', 'http://127.0.0.1:8080'].forEach(function (b) { if (!set[b]) { set[b] = 1; out.push(b); } });
+      load().forEach(function (h) { if (!set[h.base]) { set[h.base] = 1; out.push(h.base); } });
+      return out;
+    },
+    probe: function (base) {
+      return fetchJson(base.replace(/\/+$/, '') + '/api/info', { timeout: 2500 })
+        .then(function (j) { return (j && j.app === 'ir-pilot-control') ? { base: base.replace(/\/+$/, ''), info: j } : null; })
+        .catch(function () { return null; });
+    },
+    discover: function (bases) {
+      var self = this, list = bases || this.candidates();
+      return Promise.all(list.map(function (b) { return self.probe(b); }))
+        .then(function (rs) { return rs.filter(Boolean); });
+    },
+    // Gefundenen Host uebernehmen, falls noch nicht vorhanden (Token leer -> nachtragen)
+    adopt: function (base, info) {
+      var exists = load().filter(function (h) { return h.base === base; })[0];
+      if (exists) return exists;
+      return this.add({ label: (info && (info.name || info.host)) || base, base: base, token: '' });
+    },
     intakeUrl: function (h, name) {
       return h.base + '/api/intake?t=' + encodeURIComponent(h.token) + '&name=' + encodeURIComponent(name || 'intake.bin');
     }

@@ -327,7 +327,8 @@ function fakeGitHub() {
 group('Cloud-Sync (Git-Speicher)', function () {
   var C = IR.cloud;
   ok(C && C.DASH_PIN === '1374', 'Dashboard-PIN 1374');
-  ok(C.enabled() === false, 'ohne Config nicht aktiv');
+  ok(C.config().owner === 'go2dach' && C.config().repo === 'Apk---tests', 'Pfad vorbelegt (aenderbar)');
+  ok(C.enabled() === false, 'ohne Token nicht aktiv (trotz vorbelegtem Pfad)');
   C.setConfig({ owner: 'go2dach', repo: 'data-repo', branch: 'main', token: 'ghp_x' });
   ok(C.enabled() === true, 'mit Owner/Repo/Token aktiv');
   ok(C.apiUrl('cloud/incidents/index.json').indexOf('api.github.com/repos/go2dach/data-repo/contents/') >= 0, 'API-URL korrekt');
@@ -340,6 +341,42 @@ group('Cloud-Sync (Git-Speicher)', function () {
   ok(typeof snap.report === 'string' && snap.report.indexOf('Incident-Report') >= 0, 'Snapshot enthaelt Report');
   ok(C.indexEntry(snap).files === 1 && C.indexEntry(snap).report === undefined, 'Index-Eintrag schlank (Datei-Anzahl, kein Report)');
 });
+
+group('Auto-Discovery & Host-Befunde', function () {
+  var H = IR.hosts;
+  H.list().slice().forEach(function (h) { H.remove(h.id); });
+  ok(H.candidates().indexOf('http://10.13.37.1:8080') >= 0, 'netup-Default-Kandidat enthalten');
+  var a = H.adopt('http://10.13.37.1:8080', { name: 'Stick-1' });
+  ok(a && a.token === '' && a.label === 'Stick-1', 'adopt legt Host ohne Token an');
+  ok(H.adopt('http://10.13.37.1:8080', {}).id === a.id, 'adopt doppelt -> selber Host');
+  H.list().slice().forEach(function (h) { H.remove(h.id); });
+});
+
+// Async: discover() + fetchFileText() gegen simulierten Control-Server
+function hostFindingsAsync() {
+  var H = IR.hosts;
+  globalThis.fetch = function (url) {
+    function res(ok, status, json, text) {
+      return Promise.resolve({ ok: ok, status: status,
+        headers: { get: function (k) { return k.toLowerCase() === 'content-type' ? (json ? 'application/json' : 'text/plain') : ''; } },
+        json: function () { return Promise.resolve(json); }, text: function () { return Promise.resolve(text); } });
+    }
+    if (url.indexOf('10.13.37.1:8080/api/info') >= 0) return res(true, 200, { app: 'ir-pilot-control', name: 'Stick-1' });
+    if (url.indexOf('/api/info') >= 0) return Promise.reject(new Error('nope'));
+    if (url.indexOf('/download') >= 0) return res(true, 200, null, 'BEFUND-INHALT');
+    return res(false, 404, {});
+  };
+  return H.discover(['http://10.13.37.1:8080', 'http://1.2.3.4:8080']).then(function (found) {
+    ok(found.length === 1 && found[0].base === 'http://10.13.37.1:8080', 'discover findet genau 1 Host');
+    ok(found[0].info && found[0].info.name === 'Stick-1', 'discover liefert Host-Info');
+    var hh = H.adopt(found[0].base, found[0].info);
+    return H.fetchFileText(hh, 'intake/win-ingest.json').then(function (t) {
+      ok(t === 'BEFUND-INHALT', 'fetchFileText laedt Datei-Inhalt (fuers Playbook-Feeding)');
+      H.list().slice().forEach(function (h) { H.remove(h.id); });
+      delete globalThis.fetch;
+    });
+  });
+}
 
 var store = fakeGitHub();
 IR.cloud.publish(IR.Case.create({ playbookId: 'generic', title: 'Publish-Test', org: 'X' }), [])
@@ -354,6 +391,7 @@ IR.cloud.publish(IR.Case.create({ playbookId: 'generic', title: 'Publish-Test', 
     ok(idx && idx.incidents && idx.incidents.length === 1, 'pullIndex liest Vorfall (raw)');
     ok(idx.incidents[0].title === 'Publish-Test', 'pullIndex Titel korrekt');
     delete globalThis.fetch;
-    finish();
+    return hostFindingsAsync();
   })
-  .catch(function (e) { ok(false, 'Cloud publish/pull Exception: ' + (e && e.stack || e)); delete globalThis.fetch; finish(); });
+  .then(function () { finish(); })
+  .catch(function (e) { ok(false, 'Cloud/Host Async Exception: ' + (e && e.stack || e)); delete globalThis.fetch; finish(); });

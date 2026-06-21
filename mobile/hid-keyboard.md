@@ -5,6 +5,23 @@ auf deinem USB-Stick) braucht eine Eingabe, aber du hast nur dein Smartphone
 (Galaxy Fold 5) und ein USB-Kabel. Diese Notiz sagt ehrlich, **was ohne Root am
 Telefon geht und was nicht** – und nennt den Weg, den IR-Pilot empfiehlt.
 
+## Kann die App Boot-Stick / Windows-App „über USB automatisch starten"?
+
+Ehrliche Antwort – die Grenzen liegen außerhalb der App:
+
+| Wunsch | Geht das automatisch aus der App? | Warum / Workaround |
+|--------|-----------------------------------|--------------------|
+| Ziel-PC **vom Stick booten** | **Nein** | Boot-Reihenfolge ist **Firmware/BIOS**, keine Software vom Handy kann das erzwingen. Einmal im Boot-Menü `F12`/`F8` wählen (nötigenfalls Tastatur-Sim, siehe unten). |
+| Stick-OS **danach** verbinden | **Ja, automatisch** | `ir-net.service` + `ir-control.service` starten beim Boot selbst; die App findet den Host per **Auto-Discovery** (USB/Netz) ohne IP-Tippen. |
+| **Windows-App** ohne Klick starten | **Nein (Stock-Windows)** | USB-`autorun.inf` wird seit Win7 **nicht** automatisch ausgeführt. Ohne Klick ginge nur **USB-HID** (Handy tippt den Befehl) – das braucht **Root am Handy**. |
+| Windows-App **mit einem Klick** | **Ja** | `IR-Collect.cmd` doppelklicken; sammelt read-only und lädt automatisch ans Smartphone (`/api/intake`). |
+
+**Fazit:** „Automatisch aus der App über USB" ist für **Verbinden & Steuern**
+real (Auto-Discovery + Autostart der Dienste) – aber das **Booten** und das
+**Kaltstarten eines Windows-Programms** brauchen einen physischen Schritt (Boot-Taste
+bzw. Doppelklick) oder ein gerootetes Handy (HID). Die App führt dich da hindurch
+und übernimmt **ab dem Moment der Verbindung** alles automatisch.
+
 ## Kurzfassung (Entscheidung)
 
 | Weg | Root am Handy nötig? | Empfehlung |

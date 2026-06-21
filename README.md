@@ -203,6 +203,27 @@ fernsteuerbar**.
   je Host Adresse + Token hinterlegen, dann Status/Datenträger/Dateien abrufen und
   die One-Click-Aktionen auslösen. Token-geschützt; der Control-Server sendet
   CORS-Header, die APK erlaubt Cleartext zu lokalen Hosts.
+- **Auto-Discovery (USB/Netz):** „🔌 Hosts automatisch suchen" probt bekannte
+  USB-/Hotspot-Adressen (netup-Default `10.13.37.1`, USB-Tethering, link-local) auf
+  `/api/info` und übernimmt gefundene Hosts automatisch – nur den Token nachtragen.
+- **Befunde automatisch ins Playbook:** „⤵ Befunde in Fall" lädt die `ingest.json`
+  der Endpoints vom Host und merged sie (IOCs/Hosts/Beweise/Timeline) in den
+  aktiven Fall. Die Befunde erscheinen **direkt in der Forensik-Phase** des
+  Playbooks (Panel „📥 Befunde aus Daten") – genau dort, wo „Worauf achten
+  (Entscheidung)" steht. Das Tool **entscheidet bewusst nicht automatisch**
+  Confirm/Refute (das bleibt deine fachliche Bewertung), legt dir die Daten aber
+  an die Entscheidungsstelle.
+
+### „Aus der App über USB automatisch starten" – was geht (ehrlich)
+- **Verbinden & Steuern: ja, automatisch.** Stick-Dienste (`ir-net.service`,
+  `ir-control.service`) starten beim Boot selbst; die App findet den Host per
+  Auto-Discovery ohne IP-Tippen und steuert ihn.
+- **Ziel-PC vom Stick booten: nein** – Boot-Reihenfolge ist Firmware (BIOS-Boot-Menü),
+  das kann keine Handy-Software erzwingen.
+- **Windows-App kalt ohne Klick starten: nein** (Stock-Windows ignoriert USB-`autorun.inf`).
+  Mit **einem Klick** auf `IR-Collect.cmd` läuft sie und lädt automatisch ans Handy.
+  Ein klickfreier Start ginge nur per USB-HID (Handy tippt) – das braucht Root am Handy.
+  Details/Abwägung: `mobile/hid-keyboard.md`.
 - **Windows-Sammler auf dem Stick** (`windows/IR-Collect.cmd` + `ir-collect.ps1`):
   doppelklickbares, **read-only** Live-Triage-Programm (systeminfo, netstat,
   tasklist, schtasks, autoruns, DNS-Cache, Security-Events, etablierte
@@ -217,9 +238,10 @@ fernsteuerbar**.
 GitHub Pages ist statisch und kann keine Uploads annehmen – darum ist **das
 Git-Repo selbst der Cloud-Speicher**:
 
-- **Veröffentlichen (App):** Unter „☁️ Cloud" Owner/Repo/Branch + **fein
-  granularen PAT** (`Contents: write`, nur fürs Daten-Repo) hinterlegen – der Token
-  bleibt **lokal im Browser**. „In Cloud veröffentlichen" (Bericht-Tab oder „Alle
+- **Veröffentlichen (App):** Unter „☁️ Cloud" sind Owner/Repo/Branch **vorbelegt**
+  (dieses Repo, Arbeits-Branch) und bleiben **änderbar**; nur den **fein granularen
+  PAT** (`Contents: write`, nur fürs Daten-Repo) ergänzen – der Token bleibt
+  **lokal im Browser**. „In Cloud veröffentlichen" (Bericht-Tab oder „Alle
   Fälle") schreibt via GitHub-Contents-API `cloud/incidents/<id>.json` und pflegt
   `cloud/incidents/index.json` (`js/cloud.js`).
 - **Snapshot-Inhalt:** Kennzahlen, Status, Fortschritt, IOC-/Beweis-Zahlen,
