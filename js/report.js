@@ -88,10 +88,14 @@
           var steps = IR.engine.visibleSteps(ph, c);
           var done = steps.filter(function (s) { return c.checks[s.id]; });
           L.push('\n### ' + ph.title + ' (' + done.length + '/' + steps.length + ')');
+          var ALAB = { expected: 'wie erwartet', refuted: 'trifft nicht zu', other: 'anderer Befund' };
           steps.forEach(function (s) {
             var mark = c.checks[s.id] ? '[x]' : '[ ]';
             var ans = c.answers[s.id] ? ' — _' + String(c.answers[s.id]).replace(/\n/g, ' ') + '_' : '';
-            L.push('- ' + mark + ' ' + s.title + ans);
+            var av = c.assess && c.assess[s.id]; var asl = (av && ALAB[av]) ? ' · Einschätzung: **' + ALAB[av] + '**' : '';
+            var np = (c.photos || []).filter(function (p) { return p.step === s.id; }).length;
+            var pl = np ? ' · 📷 ' + np : '';
+            L.push('- ' + mark + ' ' + s.title + ans + asl + pl);
           });
         });
       }

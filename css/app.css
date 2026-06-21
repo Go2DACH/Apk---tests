@@ -115,6 +115,14 @@ details summary{cursor:pointer;color:var(--acc);font-size:13px;margin:6px 0}
 .msg.ai{align-self:flex-start;background:#0c2944;border:1px solid var(--line)}
 .msg.ai p:first-child{margin-top:0}.msg.ai p:last-child{margin-bottom:0}
 textarea#asstInput{width:100%;min-height:60px}
+.stepfoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.achips{display:flex;gap:4px;flex-wrap:wrap}
+.achip{font-size:11.5px;background:#0a233b;border:1px solid var(--line);color:var(--muted);border-radius:14px;padding:3px 9px}
+.achip.a-expected.sel{background:var(--ok);color:#04243f;border-color:var(--ok);font-weight:700}
+.achip.a-refuted.sel{background:var(--high);color:#04243f;border-color:var(--high);font-weight:700}
+.achip.a-other.sel{background:var(--acc);color:#04243f;border-color:var(--acc);font-weight:700}
+.achip.a-open.sel{background:#1d496f;color:var(--txt);font-weight:700}
+.mini.ghost{background:transparent;border:1px solid var(--line);color:var(--acc)}
 .inject-sit{background:#0c2944;border-left:3px solid var(--acc);border-radius:8px;padding:10px;margin:6px 0}
 .injprompts{margin:4px 0 8px 18px}.injprompts li{margin:4px 0}
 .ttrate{margin:8px 0}.pbcard.sel,.hypitem.sel{outline:2px solid var(--acc)}

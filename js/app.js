@@ -703,44 +703,50 @@
     return h;
   }
 
+  // Universeller Schritt-Footer: schnelle Einschaetzung (Vermutung trifft zu /
+  // nicht zu / anderer Befund / offen) + immer ein Bild-Button.
+  var ASSESS = [['expected', '✓ wie erwartet'], ['refuted', '✗ trifft nicht zu'], ['other', '≠ anderer Befund'], ['open', '– offen']];
+  function stepFooter(s) {
+    var a = (c.assess && c.assess[s.id]) || 'open';
+    var chips = ASSESS.map(function (o) {
+      return '<button class="achip a-' + o[0] + (a === o[0] ? ' sel' : '') + '" data-act="assess" data-id="' + s.id + '" data-v="' + o[0] + '">' + o[1] + '</button>';
+    }).join('');
+    var pics = (c.photos || []).filter(function (p) { return p.step === s.id; }).length;
+    return '<div class="stepfoot"><div class="achips">' + chips + '</div>' +
+      '<button class="mini ghost" data-act="step-photo" data-id="' + s.id + '">📷 Bild' + (pics ? ' (' + pics + ')' : '') + '</button></div>';
+  }
   function renderStep(s) {
     var checked = !!c.checks[s.id];
     var head = '<div class="step ' + (checked ? 'done' : '') + '" data-step="' + s.id + '">';
     var body = '<div class="stepbody">' + U.md(s.do || '') + '</div>';
+    var inner;
     if (s.type === 'check' || s.type === 'note') {
       var box = s.type === 'check' ? '<button class="chk" data-act="toggle" data-id="' + s.id + '">' + (checked ? '✓' : '') + '</button>' : '<span class="dot">i</span>';
-      return head + '<div class="steptop">' + box + '<strong>' + U.esc(s.title) + '</strong></div>' + body + '</div>';
-    }
-    if (s.type === 'input') {
+      inner = '<div class="steptop">' + box + '<strong>' + U.esc(s.title) + '</strong></div>' + body;
+    } else if (s.type === 'input') {
       var val = c.answers[s.id] || '';
-      var field = s.field.kind === 'textarea'
+      inner = '<div class="steptop"><span class="dot">✎</span><strong>' + U.esc(s.title) + '</strong></div>' + body + (s.field.kind === 'textarea'
         ? '<textarea data-answer="' + s.id + '" placeholder="' + U.esc(s.field.label) + '">' + U.esc(val) + '</textarea>'
-        : '<input data-answer="' + s.id + '" placeholder="' + U.esc(s.field.label) + '" value="' + U.esc(val) + '">';
-      return head + '<div class="steptop"><span class="dot">✎</span><strong>' + U.esc(s.title) + '</strong></div>' + body + field + '</div>';
-    }
-    if (s.type === 'choice') {
+        : '<input data-answer="' + s.id + '" placeholder="' + U.esc(s.field.label) + '" value="' + U.esc(val) + '">');
+    } else if (s.type === 'choice') {
       var opts = s.options.map(function (o, i) {
         var sel = c.flags[o.setFlag.k] === o.setFlag.v;
         return '<button class="opt ' + (sel ? 'sel' : '') + '" data-act="choice" data-id="' + s.id + '" data-i="' + i + '">' + U.esc(o.label) + '</button>';
       }).join('');
-      return head + '<div class="steptop"><span class="dot">?</span><strong>' + U.esc(s.title) + '</strong></div>' + body + '<div class="opts">' + opts + '</div></div>';
+      inner = '<div class="steptop"><span class="dot">?</span><strong>' + U.esc(s.title) + '</strong></div>' + body + '<div class="opts">' + opts + '</div>';
+    } else if (s.type === 'evidence') {
+      inner = '<div class="steptop"><button class="chk" data-act="toggle" data-id="' + s.id + '">' + (checked ? '✓' : '') + '</button><strong>' + U.esc(s.title) + '</strong></div>' + body +
+        '<button class="mini" data-act="ev-add" data-id="' + s.id + '">+ Beweis erfassen</button>';
+    } else if (s.type === 'comms') {
+      inner = '<div class="steptop"><button class="chk" data-act="toggle" data-id="' + s.id + '">' + (checked ? '✓' : '') + '</button><strong>' + U.esc(s.title) + '</strong></div>' + body +
+        '<button class="mini" data-act="comm-open" data-id="' + s.commsId + '">Vorlage oeffnen</button>';
+    } else if (s.type === 'tool') {
+      inner = '<div class="steptop"><button class="chk" data-act="toggle" data-id="' + s.id + '">' + (checked ? '✓' : '') + '</button><strong>' + U.esc(s.title) + '</strong></div>' + body +
+        '<button class="mini" data-act="tool-open" data-id="' + (s.toolId || '') + '">Tool oeffnen</button>';
+    } else {
+      inner = '<strong>' + U.esc(s.title) + '</strong>' + body;
     }
-    if (s.type === 'evidence') {
-      var btn = '<button class="chk" data-act="toggle" data-id="' + s.id + '">' + (checked ? '✓' : '') + '</button>';
-      return head + '<div class="steptop">' + btn + '<strong>' + U.esc(s.title) + '</strong></div>' + body +
-        '<button class="mini" data-act="ev-add" data-id="' + s.id + '">+ Beweis erfassen</button></div>';
-    }
-    if (s.type === 'comms') {
-      var btn2 = '<button class="chk" data-act="toggle" data-id="' + s.id + '">' + (checked ? '✓' : '') + '</button>';
-      return head + '<div class="steptop">' + btn2 + '<strong>' + U.esc(s.title) + '</strong></div>' + body +
-        '<button class="mini" data-act="comm-open" data-id="' + s.commsId + '">Vorlage oeffnen</button></div>';
-    }
-    if (s.type === 'tool') {
-      var btn3 = '<button class="chk" data-act="toggle" data-id="' + s.id + '">' + (checked ? '✓' : '') + '</button>';
-      return head + '<div class="steptop">' + btn3 + '<strong>' + U.esc(s.title) + '</strong></div>' + body +
-        '<button class="mini" data-act="tool-open" data-id="' + (s.toolId || '') + '">Tool oeffnen</button></div>';
-    }
-    return head + '<strong>' + U.esc(s.title) + '</strong>' + body + '</div>';
+    return head + inner + stepFooter(s) + '</div>';
   }
 
   function viewEvidence() {
@@ -979,6 +985,8 @@
     } else if (act === 'open') { setCase(id); }
     else if (act === 'del') { if (confirm('Fall loeschen?')) { IR.store.remove(id); render(); } }
     else if (act === 'toggle') { c.checks[id] = !c.checks[id]; IR.Case.log(c, 'action', (c.checks[id] ? 'erledigt: ' : 'offen: ') + stepTitle(id)); save(); render(); }
+    else if (act === 'assess') { if (!c.assess) c.assess = {}; c.assess[id] = b.dataset.v; save(); render(); }
+    else if (act === 'step-photo') { stepPhoto(id); }
     else if (act === 'choice') { var st = findStep(id); var o = st.options[+b.dataset.i]; IR.Case.setFlag(c, o.setFlag.k, o.setFlag.v); save(); render(); }
     else if (act === 'ev-add') { var s2 = findStep(id); IR.Case.addEvidence(c, { name: s2.evidence.name, type: s2.evidence.type, volatility: s2.evidence.volatility, method: s2.evidence.method, collectedBy: c.responder }); c.checks[id] = true; save(); toast('Beweis angelegt – im Tab Beweise vervollstaendigen'); render(); }
     else if (act === 'ev-new') { IR.Case.addEvidence(c, { name: 'Neuer Beweis', collectedBy: c.responder }); save(); render(); }
@@ -1024,6 +1032,22 @@
       setTimeout(function () { document.body.classList.remove('printing'); }, 1500);
     }, 250);
     toast('Drucken → „Als PDF speichern"');
+  }
+
+  // Bild an einen Schritt anhaengen (Kamera oder Galerie; in der APK Auswahl).
+  function stepPhoto(stepId) {
+    var st = findStep(stepId);
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    inp.addEventListener('change', function () {
+      var f = inp.files && inp.files[0]; if (!f) return;
+      downscaleImage(f, 1200, 0.65, function (dataUrl) {
+        var ph = IR.Case.addPhoto(c, { name: (st ? st.title : 'Schritt-Foto'), step: stepId, dataUrl: dataUrl });
+        if (save() === false) { IR.Case.removePhoto(c, ph.id); save(); toast('⚠ Speicher voll – Bild nicht gespeichert'); }
+        else toast('Bild angehängt');
+        render();
+      });
+    });
+    inp.click();
   }
 
   // Foto/Screenshot erfassen: Kamera (capture) oder Galerie/Datei; verkleinern -> dataURL.

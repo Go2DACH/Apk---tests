@@ -85,6 +85,7 @@
         flags: {},            // Entscheidungs-Flags (z.B. {leben_gefahr:true})
         answers: {},          // stepId -> erfasster Wert
         checks: {},           // stepId -> bool (abgehakt)
+        assess: {},           // stepId -> 'expected'|'refuted'|'other'|'open' (Schnell-Einschaetzung)
         timeline: [],         // {ts, kind, text, by}
         evidence: [],         // siehe addEvidence
         iocs: [],             // {ts, type, value, note}
@@ -100,7 +101,7 @@
     addPhoto: function (c, p) {
       p = p || {};
       if (!c.photos) c.photos = [];
-      var ph = { id: U.uid('img'), ts: U.nowISO(), name: p.name || 'Foto', note: p.note || '', host: p.host || '', dataUrl: p.dataUrl || '' };
+      var ph = { id: U.uid('img'), ts: U.nowISO(), name: p.name || 'Foto', note: p.note || '', host: p.host || '', step: p.step || '', dataUrl: p.dataUrl || '' };
       c.photos.push(ph);
       IR.Case.log(c, 'evidence', 'Foto/Screenshot erfasst: ' + ph.name + (ph.host ? ' (' + ph.host + ')' : ''));
       return ph;

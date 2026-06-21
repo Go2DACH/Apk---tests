@@ -64,6 +64,12 @@ function run() {
     // Befund erscheint automatisch im Playbook (Forensik-Phase)
     [].slice.call(d.querySelectorAll('.nav-btn')).filter(function (b) { return b.dataset.view === 'pb'; })[0].click();
     ok(!!d.querySelector('.findings') && /Befunde aus Daten/.test(d.querySelector('#app').innerHTML), 'Befunde aus Daten im Playbook sichtbar');
+    // Universeller Schritt-Footer: Einschätzung-Chips + Bild auf jedem Schritt
+    var nstep = d.querySelectorAll('.step').length;
+    ok(d.querySelectorAll('.stepfoot').length === nstep && d.querySelectorAll('.achip').length === nstep * 4, 'Einschätzung-Chips an jedem Schritt');
+    ok(d.querySelectorAll('[data-act="step-photo"]').length === nstep, 'Bild-Button an jedem Schritt');
+    d.querySelector('[data-act="assess"][data-v="expected"]').click();
+    ok(!!d.querySelector('.achip.a-expected.sel'), 'Einschätzung „wie erwartet" gesetzt');
     ok(/LT12/.test(d.querySelector('.findings').innerHTML), 'importierter IOC steht im Forensik-Befund');
 
     // Beweise-Ansicht: Foto-Bereich vorhanden
