@@ -4,3 +4,4 @@ node_modules/
 package-lock.json
 dist/card-*.png
 dist/_walk.html
+dist/release/

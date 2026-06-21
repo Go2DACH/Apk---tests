@@ -4,7 +4,9 @@
  */
 'use strict';
 var fs = require('fs'), path = require('path');
-require('../js/core.js'); require('../data/playbooks.js'); require('../data/comms.js');
+require('../js/core.js'); require('../data/catalog.js'); require('../data/comms.js');
+require('../data/toolkit.js'); require('../data/questions.js'); require('../js/framework.js');
+require('../data/playbooks.js');
 var IR = globalThis.IR;
 function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
 function li(arr){ return arr.map(function(x){return '<li>'+esc(x)+'</li>';}).join(''); }
