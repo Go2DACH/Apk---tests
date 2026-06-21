@@ -450,9 +450,23 @@
       '<p class="muted">Externe Daten-Lieferanten (z.B. dein IDS-Tool mit Asset-Inventar &amp; Schwachstellen) per JSON-URL anbinden. ' +
       'Die App ruft ab und übernimmt Assets, Schwachstellen, IOCs, Hosts und IDS-Alerts in den aktiven Fall. ' +
       'Erwartetes Format: <code>docs/integration-ids.md</code>.</p>';
+    // Auto-Discovery der IDS-Webseite (Port 8244)
+    h += '<div class="hostadd"><div class="row"><strong>🔍 IDS automatisch suchen (Port ' + IR.sources.PORT + ')</strong></div>' +
+      '<div class="row"><label>Subnetz</label><input id="srcSubnet" value="' + U.esc(state.srcSubnet || IR.sources.guessSubnet()) + '" placeholder="z.B. 192.168.1"></div>' +
+      '<button class="mini" data-act="src-discover"' + (state.srcScan ? ' disabled' : '') + '>' + (state.srcScan ? 'suche …' : 'Im WLAN/Netz suchen') + '</button>' +
+      '<small class="muted">Scannt &lt;Subnetz&gt;.1–254 auf Port ' + IR.sources.PORT + ' nach dem IDS-Export. WLAN: Handy &amp; IDS im selben Netz (keine AP-Isolation).</small></div>';
+    if (state.srcFound) {
+      if (!state.srcFound.length) h += '<small class="warn">Kein IDS gefunden – Subnetz/Port prüfen, IDS auf 0.0.0.0 gebunden?</small>';
+      state.srcFound.forEach(function (f) {
+        h += '<div class="row caseitem"><span><strong>' + U.esc(f.ip) + ':' + f.port + '</strong>' +
+          '<small>' + (f.needsToken ? 'Token nötig' : 'offen') + ' · ' + U.esc(f.url) + '</small></span>' +
+          '<button class="mini" data-act="src-adopt" data-id="' + U.esc(f.ip) + '">+ übernehmen</button></div>';
+      });
+    }
     if (list.length < IR.sources.MAX) {
-      h += '<div class="hostadd"><div class="row"><input id="srcLabel" placeholder="Name (z.B. Mein-IDS)"></div>' +
-        '<div class="row"><input id="srcUrl" placeholder="JSON-URL (z.B. http://ids.local/api/export)"></div>' +
+      h += '<div class="hostadd"><div class="row"><strong>Manuell hinzufügen</strong></div>' +
+        '<div class="row"><input id="srcLabel" placeholder="Name (z.B. Mein-IDS)"></div>' +
+        '<div class="row"><input id="srcUrl" placeholder="JSON-URL (z.B. http://192.168.1.50:8244/api/ir-pilot/export)"></div>' +
         '<div class="row"><input id="srcToken" type="password" placeholder="Token (optional, Bearer)"></div>' +
         '<button class="mini" data-act="src-add">+ Datenquelle hinzufügen</button></div>';
     }
@@ -780,6 +794,18 @@
     }
     if (act === 'src-del') { if (confirm('Datenquelle entfernen?')) { IR.sources.remove(id); render(); } return; }
     if (act === 'src-pull') { srcPull(id); return; }
+    if (act === 'src-discover') {
+      var sub = ($('#srcSubnet') || {}).value || IR.sources.guessSubnet();
+      state.srcSubnet = sub; state.srcScan = true; state.srcFound = null; render();
+      IR.sources.discover(sub).then(function (found) { state.srcScan = false; state.srcFound = found; toast(found.length ? (found.length + ' IDS gefunden') : 'Kein IDS gefunden'); render(); })
+        .catch(function () { state.srcScan = false; state.srcFound = []; render(); });
+      return;
+    }
+    if (act === 'src-adopt') {
+      var f = (state.srcFound || []).filter(function (x) { return x.ip === id; })[0];
+      if (f) { var r = IR.sources.adopt(f); toast(r ? 'IDS übernommen – ggf. Token ergänzen' : 'schon vorhanden / Max erreicht'); render(); }
+      return;
+    }
     // ---- KI-Assistent ----
     if (act === 'goto-assistant') { state.view = 'assistant'; return render(); }
     if (act === 'asst-save') {
@@ -905,6 +931,7 @@
     if (t.id === 'wizq') { wiz().q = t.value; var pos = t.selectionStart; render(); var e2 = document.getElementById('wizq'); if (e2) { e2.focus(); try { e2.setSelectionRange(pos, pos); } catch (_) {} } return; }
     if (t.dataset.wizans != null) { wiz().answers[t.dataset.wizans] = t.value; return; }
     if (t.id === 'asstInput') { state.asstDraft = t.value; return; }
+    if (t.id === 'srcSubnet') { state.srcSubnet = t.value; return; }
     if (!c) return;
     if (t.dataset.photo != null) { var pp = (c.photos || []).filter(function (x) { return x.id === t.dataset.photo; })[0]; if (pp) { pp.note = t.value; save(); } return; }
     if (t.dataset.answer != null) { c.answers[t.dataset.answer] = t.value; save(); }

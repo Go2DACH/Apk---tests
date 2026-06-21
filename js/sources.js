@@ -53,6 +53,8 @@
 
   IR.sources = {
     MAX: MAX,
+    PORT: 8244,                          // Standard-Port der IDS-Webseite
+    PATH: '/api/ir-pilot/export',        // erwarteter Export-Endpunkt
     list: function () { return load(); },
     get: function (id) { return load().filter(function (s) { return s.id === id; })[0]; },
     add: function (s) {
@@ -85,6 +87,78 @@
       return this.fetchBundle(s).then(function (bundle) { return IR.ingest.merge(cse, bundle); });
     },
     toBundle: toBundle
+  };
+
+  // ---------------- Auto-Discovery der IDS-Webseite (Port 8244) ----------------
+  // Subnetz aus vorhandenen Quellen/Hosts erraten, sonst gaengiges Heimnetz.
+  function guessSubnet() {
+    function octets(u) { var m = String(u || '').match(/(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}/); return m ? m[1] + '.' + m[2] + '.' + m[3] : null; }
+    var fromSrc = load().map(function (s) { return octets(s.url); }).filter(Boolean)[0];
+    if (fromSrc) return fromSrc;
+    try {
+      var fromHost = (IR.hosts ? IR.hosts.list() : []).map(function (h) { return octets(h.base); }).filter(Boolean)[0];
+      if (fromHost) return fromHost;
+    } catch (e) {}
+    return '192.168.1';
+  }
+  // Liste der zu probenden IPs aus einer Eingabe ("192.168.1", "192.168.1.0/24",
+  // einzelne IP oder Komma-Liste) + ein paar gaengige Gateways.
+  function expandBase(base) {
+    base = String(base || '').trim();
+    var ips = {}, add = function (x) { if (/^\d{1,3}(\.\d{1,3}){3}$/.test(x)) ips[x] = 1; };
+    base.split(',').map(function (s) { return s.trim(); }).forEach(function (b) {
+      if (!b) return;
+      b = b.replace(/\/\d+$/, '').replace(/\.0$/, '');
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(b)) { add(b); return; }              // einzelne IP
+      var m = b.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);                    // /24-Basis
+      if (m) { for (var i = 1; i <= 254; i++) add(b + '.' + i); }
+    });
+    ['192.168.0.1', '192.168.1.1', '192.168.178.1', '10.0.0.1'].forEach(add);
+    return Object.keys(ips);
+  }
+  function probeOne(ip, port, token, timeout) {
+    if (typeof root.fetch !== 'function') return Promise.resolve(null);
+    var url = 'http://' + ip + ':' + (port || IR.sources.PORT) + IR.sources.PATH;
+    var ctrl = (typeof root.AbortController === 'function') ? new root.AbortController() : null;
+    var t = ctrl ? setTimeout(function () { ctrl.abort(); }, timeout || 1500) : null;
+    var headers = { 'Accept': 'application/json' }; if (token) headers['Authorization'] = 'Bearer ' + token;
+    return root.fetch(url, { headers: headers, signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
+      if (t) clearTimeout(t);
+      // 200 = offen, 401 = IDS vorhanden, braucht Token. Beides = Treffer.
+      if (r.status === 200 || r.status === 401) return { ip: ip, port: (port || IR.sources.PORT), url: url, needsToken: r.status === 401 };
+      return null;
+    }).catch(function () { if (t) clearTimeout(t); return null; });
+  }
+  function pool(items, worker, limit) {
+    return new Promise(function (resolve) {
+      var i = 0, active = 0, done = 0, n = items.length, out = [];
+      if (!n) return resolve(out);
+      (function next() {
+        while (active < limit && i < n) {
+          active++;
+          worker(items[i++]).then(function (r) { if (r) out.push(r); }).catch(function () {}).then(function () {
+            active--; done++; if (done === n) resolve(out); else next();
+          });
+        }
+      })();
+    });
+  }
+  IR.sources.guessSubnet = guessSubnet;
+  IR.sources.expandBase = expandBase;
+  IR.sources.probe = probeOne;
+  // IDS im (Sub-)Netz suchen. base = "192.168.1" o.ae.; opts.token optional.
+  IR.sources.discover = function (base, opts) {
+    opts = opts || {};
+    var ips = expandBase(base || guessSubnet());
+    var port = opts.port || IR.sources.PORT, token = opts.token || '';
+    return pool(ips, function (ip) { return probeOne(ip, port, token, opts.timeout || 1500); }, opts.concurrency || 24);
+  };
+  // Gefundenes IDS als Datenquelle uebernehmen (sofern noch nicht vorhanden).
+  IR.sources.adopt = function (found, label) {
+    var exists = load().filter(function (s) { return s.url === found.url; })[0];
+    if (exists) return exists;
+    if (load().length >= MAX) return null;
+    return IR.sources.add({ label: label || ('IDS ' + found.ip), url: found.url, token: '' });
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = IR.sources;

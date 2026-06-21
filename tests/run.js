@@ -352,6 +352,13 @@ group('IDS-Datenquelle & Ingest (Assets/Vulns/Alerts)', function () {
   ok(req.opts.headers.Authorization === 'Bearer tok', 'Token als Bearer-Header');
   ok(S.toBundle([{ name: 'A', ip: '1.2.3.4' }], 'x').assets.length === 1, 'reines Array -> Asset-Liste');
   ok(S.toBundle({ vulnerabilities: [{ cve: 'X' }] }, 'x').vulns.length === 1, 'Alias vulnerabilities->vulns');
+  // Discovery-Helfer
+  ok(S.PORT === 8244, 'IDS-Port 8244');
+  var ips = S.expandBase('192.168.1');
+  ok(ips.indexOf('192.168.1.1') >= 0 && ips.indexOf('192.168.1.254') >= 0 && ips.length >= 254, 'expandBase erzeugt /24');
+  ok(S.expandBase('10.0.0.5').indexOf('10.0.0.5') >= 0, 'expandBase einzelne IP');
+  S.add({ label: 'x', url: 'http://192.168.7.50:8244/api/ir-pilot/export' });
+  ok(S.guessSubnet() === '192.168.7', 'guessSubnet aus vorhandener Quelle');
   S.list().slice().forEach(function (s) { S.remove(s.id); });
 });
 
@@ -370,6 +377,21 @@ function sourcesAsync() {
   return S.pullInto(src, c).then(function (r) {
     ok(r.assets === 1 && r.vulns === 1 && c.assets[0].name === 'SRV1', 'pullInto holt + merged Assets/Vulns');
     S.list().slice().forEach(function (s) { S.remove(s.id); });
+    delete globalThis.fetch;
+  });
+}
+
+// Async: IDS-Discovery (Port 8244) – genau eine IP "antwortet"
+function discoveryAsync() {
+  var S = IR.sources;
+  globalThis.fetch = function (url) {
+    var hit = url.indexOf('192.168.5.42:8244/api/ir-pilot/export') >= 0;
+    if (hit) return Promise.resolve({ status: 401 });               // gefunden, Token noetig
+    return Promise.reject(new Error('nope'));                        // alle anderen offline
+  };
+  return S.discover('192.168.5', { timeout: 50, concurrency: 64 }).then(function (found) {
+    ok(found.length === 1 && found[0].ip === '192.168.5.42' && found[0].needsToken === true, 'Discovery findet IDS auf :8244');
+    ok(found[0].url === 'http://192.168.5.42:8244/api/ir-pilot/export', 'Discovery-URL korrekt');
     delete globalThis.fetch;
   });
 }
@@ -489,5 +511,6 @@ IR.cloud.publish(IR.Case.create({ playbookId: 'generic', title: 'Publish-Test', 
   })
   .then(function () { return assistantAsync(); })
   .then(function () { return sourcesAsync(); })
+  .then(function () { return discoveryAsync(); })
   .then(function () { finish(); })
   .catch(function (e) { ok(false, 'Cloud/Host Async Exception: ' + (e && e.stack || e)); delete globalThis.fetch; finish(); });

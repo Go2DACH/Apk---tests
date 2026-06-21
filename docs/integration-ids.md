@@ -45,6 +45,15 @@ Array wird als **Asset-Liste** interpretiert.
 | Indikatoren | `iocs[]` | IOC-Liste |
 | Hosts | `hosts[]` | IOC `host` |
 
+## Auto-Discovery (Port 8244)
+IR-Pilot kann das IDS im Netz selbst finden: **„🗄️ Datenquellen → 🔍 IDS
+automatisch suchen"** scannt `&lt;Subnetz&gt;.1–254` auf **Port 8244** nach dem Pfad
+`/api/ir-pilot/export` (HTTP 200 = offen, 401 = vorhanden, Token nötig). Damit das
+klappt:
+- Endpunkt unter **`/api/ir-pilot/export` auf Port `8244`** bereitstellen.
+- Server an **`0.0.0.0`** binden (nicht nur `localhost`), Port 8244 in der Firewall offen.
+- WLAN ohne **AP-/Client-Isolation** (sonst Handy-Hotspot oder USB-Ethernet nutzen).
+
 ## Auth & Netz
 - Optionaler **Token** wird als `Authorization: Bearer <token>` gesendet.
 - Antworte mit `Content-Type: application/json` und – wenn die App von einem

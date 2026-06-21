@@ -157,6 +157,7 @@ function run() {
     d.querySelector('#home').click();
     d.querySelector('[data-act="goto-sources"]').click();
     ok(/Datenquellen/.test(d.querySelector('#app').innerHTML) && !!d.querySelector('#srcUrl'), 'Datenquellen-Ansicht mit URL-Feld');
+    ok(!!d.querySelector('[data-act="src-discover"]') && !!d.querySelector('#srcSubnet') && /8244/.test(d.querySelector('#app').innerHTML), 'IDS-Discovery (Port 8244) vorhanden');
     d.querySelector('#srcLabel').value = 'Mein-IDS';
     d.querySelector('#srcUrl').value = 'http://ids.local/api/export';
     d.querySelector('[data-act="src-add"]').click();
