@@ -45,7 +45,9 @@
   }
   function recoveryCommon(p) {
     return [
-      s(p + '-w-clean', 'check', 'Nur aus sauberer Quelle wiederherstellen', 'Wiederherstellung ausschliesslich aus **verifiziert sauberen** Backups/Images. Keine Wiederverwendung potenziell kompromittierter Systeme ohne Neuaufsetzen.'),
+      s(p + '-w-evidence', 'check', 'STOP: Beweissicherung VOR Restore abgeschlossen?', '**Erst sichern, dann restoren!** Restore/Neuaufsetzen ueberschreibt fluechtige Spuren unwiderruflich. Pruefen: alle relevanten Beweise (RAM, Images/Triage, Logs) gesichert, **gehasht** und in der Beweisliste mit Chain of Custody erfasst.'),
+      s(p + '-w-order', 'input', 'Wiederanlauf-Reihenfolge priorisieren', 'Kritische Prozesse zuerst (Sicherheit/Versorgung, Produktion, Kasse). Reihenfolge + Verantwortliche festhalten.', { field: { name: p + '-restore-order', label: 'Priorisierte Reihenfolge', kind: 'textarea' } }),
+      s(p + '-w-clean', 'check', 'Nur aus sauberer Quelle wiederherstellen', 'Wiederherstellung ausschliesslich aus **verifiziert sauberen** Backups/Images (Stand vor der Kompromittierung). Keine Wiederverwendung potenziell kompromittierter Systeme ohne Neuaufsetzen. Backup offline halten.'),
       s(p + '-w-creds', 'check', 'Alle Zugaenge erneuern', 'Passwoerter/Keys/Tokens/Zertifikate rotieren (priorisiert Admin/Dienstkonten). MFA erzwingen.'),
       s(p + '-w-monitor', 'check', 'Verschaerftes Monitoring beim Wiederanlauf', 'Vor Go-Live zusaetzliche Protokollierung/EDR/Netzwerk-Monitoring aktivieren; Wiederanlauf stufenweise und beobachtet.'),
       s(p + '-w-validate', 'check', 'Wiederanlauf validieren', 'Funktion + Sicherheit pruefen (keine Restpersistenz, keine IOC-Kommunikation), bevor der Normalbetrieb freigegeben wird.')

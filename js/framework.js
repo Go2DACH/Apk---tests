@@ -124,26 +124,38 @@
     });
     if (!comms.length) comms.push(s(id('comm'), 'comms', 'Geschaeftsleitung briefen', '', { commsId: 'mgmt_briefing' }));
 
-    // Forensik: Beweise (nach Volatilitaet) + Tools an der richtigen Stelle
+    // Forensik: Beweise (nach Volatilitaet) + worauf achten + Tools + Entscheidung
     var forensik = [];
     (hyp.forensic || []).slice().sort(function (a, b) { return (VOL[a.volatility] || 1) - (VOL[b.volatility] || 1); })
       .forEach(function (f) {
-        forensik.push(s(id('ev'), 'evidence', f.name, 'Fluechtigkeit: **' + (f.volatility || '—') + '** – sichern, hashen, Chain of Custody.', { evidence: { name: f.name, type: f.type, volatility: f.volatility } }));
+        var md = 'Fluechtigkeit: **' + (f.volatility || '—') + '** – sichern, hashen, Chain of Custody.' +
+          (f.look ? '\n**Worauf achten (Entscheidung):** ' + f.look : '');
+        forensik.push(s(id('ev'), 'evidence', f.name, md, { evidence: { name: f.name, type: f.type, volatility: f.volatility } }));
       });
     toolsList(env, hyp).forEach(function (tid) {
       forensik.push(s(id('tool'), 'tool', 'Tool: ' + tid, 'Passendes Werkzeug zur Sicherung/Analyse – im Tab **Tools** oeffnen.', { toolId: tid }));
     });
+    forensik.push(s(id('decide'), 'input', 'Befund & Entscheidung: bestaetigt sich die Vermutung?',
+      '**Entscheidungskriterien:** ' + (hyp.decide || 'Pruefen, ob die Vermutung durch die Daten gestuetzt wird.') +
+      '\n\nBefund festhalten; bei Bedarf Einstufung in der Erstbewertung anpassen.',
+      { field: { name: 'befund', label: 'Forensischer Befund / Entscheidung', kind: 'textarea' } }));
 
     // Eindaemmung / Bereinigung
     var contain = (hyp.contain || []).map(function (t) { return s(id('cont'), 'check', t, ''); });
     var eradicate = (hyp.eradicate || []).map(function (t) { return s(id('erad'), 'check', t, ''); });
 
-    // Wiederanlauf / Ermittlung / Abschluss (generisch)
+    // Wiederherstellung & sicherer Wiederanlauf – begleitet, Beweise ZUERST
     var recovery = [
-      s(id('w'), 'check', 'Nur aus verifiziert sauberer Quelle wiederherstellen', 'Keine Wiederverwendung potenziell kompromittierter Systeme ohne Neuaufsetzen.'),
-      s(id('w'), 'check', 'Alle Zugaenge erneuern (Passwoerter/Keys/Tokens), MFA', ''),
-      s(id('w'), 'check', 'Verschaerftes Monitoring beim stufenweisen Wiederanlauf', ''),
-      s(id('w'), 'check', 'Wiederanlauf validieren (Funktion + keine Restpersistenz)', '')
+      s(id('w'), 'check', 'STOP: Beweissicherung VOR Restore abgeschlossen?', '**Erst sichern, dann restoren!** Restore/Neuaufsetzen ueberschreibt fluechtige Spuren unwiderruflich. Pruefen: alle relevanten Beweise (RAM, Images/Triage, Logs) gesichert, **gehasht** und in der Beweisliste mit Chain of Custody erfasst. Im Zweifel zusaetzlich ein Voll-Image ziehen.'),
+      s(id('w'), 'check', 'Saubere Wiederherstellungsquelle bestimmen & pruefen', 'Verifiziert sauberes Backup/Image VON VOR der Kompromittierung. Integritaet/Hash pruefen, Backup offline halten (Schutz vor Mitverschluesselung/Wiper).'),
+      s(id('w'), 'input', 'Wiederanlauf-Reihenfolge priorisieren', 'Kritische Prozesse zuerst (z.B. Kuehlung/Produktion/Kasse). Reihenfolge + Verantwortliche festhalten.', { field: { name: 'restore_order', label: 'Priorisierte Reihenfolge', kind: 'textarea' } }),
+      s(id('w'), 'check', 'Erstzugang/Schwachstelle geschlossen (vor dem Restore)', 'Ausgenutzten Weg (RDP/VPN/Phishing/Exploit/Konto) abstellen, sonst Re-Infektion.'),
+      s(id('w'), 'check', 'In gesaeubertem/segmentiertem Netz wiederherstellen', 'Nicht ins noch kompromittierte Netz zurueck; saubere VLANs/Segmente.'),
+      s(id('w'), 'check', 'Alle Zugaenge erneuern (Passwoerter/Keys/Tokens, MFA)', 'Priorisiert Admin-/Dienstkonten; bei AD KRBTGT 2x zuruecksetzen.'),
+      s(id('w'), 'check', 'Vor Go-Live: Monitoring/EDR scharf, IOCs geblockt', 'Erhoehte Protokollierung; auf Wiederauftauchen von IOCs/Persistenz achten.'),
+      s(id('w'), 'check', 'Integritaet & Funktion validieren', 'Keine Restpersistenz, keine IOC-Kommunikation; Funktionstest der Kernprozesse.'),
+      s(id('w'), 'check', 'Stufenweiser, beobachteter Wiederanlauf', 'System fuer System hochfahren, beobachten, dann das naechste.'),
+      s(id('w'), 'input', 'Go-Live-Entscheidung dokumentieren', 'Wer gibt frei? Welche Kriterien erfuellt? Restrisiken benannt.', { field: { name: 'golive', label: 'Go-Live-Freigabe', kind: 'textarea' } })
     ];
     var ermittlung = [
       s(id('i'), 'check', 'Root Cause & Zeitachse rekonstruieren', 'Erstzugang, Verweildauer, Wirkung, Datenabfluss.'),

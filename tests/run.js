@@ -229,6 +229,13 @@ group('Framework: Playbook-Generierung', function () {
   // KRITIS-Umgebung -> BSI-Meldung enthalten
   var commsIds = []; pb.phases.forEach(function (ph) { ph.steps.forEach(function (s) { if (s.commsId) commsIds.push(s.commsId); }); });
   ok(commsIds.indexOf('kritis_bsi') >= 0, 'KRITIS-Umgebung -> BSI-Meldung');
+  // Forensische Entscheidungskriterien + Restore-Begleitung + Beweise-vor-Restore
+  var fore = pb.phases.filter(function (p) { return p.id === 'forensik'; })[0];
+  ok(fore.steps.some(function (s) { return /Worauf achten/.test(s.do || ''); }), 'Beweise nennen Entscheidungskriterien (worauf achten)');
+  ok(fore.steps.some(function (s) { return /-decide-/.test(s.id) && /Entscheidungskriterien/.test(s.do || ''); }), 'Entscheidungs-Stufe in Forensik');
+  var wied = pb.phases.filter(function (p) { return p.id === 'wiederanlauf'; })[0];
+  ok(wied.steps[0] && /Beweissicherung VOR Restore/.test(wied.steps[0].title), 'Beweissicherung-vor-Restore als erster Wiederanlauf-Schritt');
+  ok(wied.steps.some(function (s) { return /Go-Live-Entscheidung/.test(s.title); }), 'Begleiteter Wiederanlauf inkl. Go-Live-Entscheidung');
 
   // Voller Durchlauf -> Report
   var c = IR.Case.create({ playbookId: pb.id, title: pb.title }); c.playbook = pb;
